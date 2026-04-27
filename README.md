@@ -1,4 +1,3 @@
-
 # Reflex Arena: Resource Wars
 
 > A top-down multiplayer arena game built entirely in vanilla JavaScript and Node.js — no frameworks, no build tools, no game engine.
@@ -42,6 +41,10 @@ The whole thing runs on a single Node.js process with no database get...(will ad
 
 ## How the multiplayer works
 
+### Why WebSockets?
+
+The first question was what transport to use. HTTP request-response would mean the client has to constantly ask "what changed?" — that's polling, and it's wasteful and slow. WebSockets give you a persistent two-way connection where the server can push data the moment something happens, with no handshake overhead on each message. For a game running at 30 Hz that's 30 unsolicited pushes per second — impossible with regular HTTP.
+
 ### The server owns everything
 
 The biggest architectural decision was making the server fully authoritative. Every player action — movement, shooting, buying items, using abilities — is validated server-side before anything happens. The client never trusts itself.
@@ -55,23 +58,84 @@ When you press W to move forward:
 4. Screens update
 ```
 
-This prevents cheating entirely — you can't teleport, deal extra damage, or pick talents you haven't earned, because the server checks everything.
+The alternative — trusting the client — means anyone can open the browser console and set `player.x = enemyBase.x` or `player.damage = 99999`. Server authority makes that impossible because the server ignores positions it didn't calculate itself and validates every ability use against a cooldown it tracks internally.
+
+### Why 30 Hz broadcast, not 60 Hz?
+
+The server runs physics at 60 Hz internally but only sends state to clients every 2 ticks (30 Hz). This halves bandwidth and broadcast CPU with no perceptible difference in feel, because:
+
+- At 30 Hz, updates arrive every ~33 ms
+- The client holds a 34 ms interpolation buffer, so it always has two snapshots to blend between
+- Players can't actually perceive individual network updates — they see the smooth interpolated output
+
+Going higher than 30 Hz would cost real bandwidth and server CPU for gains the human eye can't see.
+
+### Why 125 Hz for player input?
+
+Input goes the other direction — from client to server. This is sent at 125 Hz (every 8 ms) because shooting and dashing happen in single frames. If input only sent at 30 Hz, a tap-fire shot could be missed entirely. 125 Hz ensures the server sees every intent, even for actions that last less than one screen frame.
+
+### Binary protocol instead of JSON
+
+The naive approach is to `JSON.stringify()` the game state and send that as text. The problem is size and speed:
+
+- JSON for 6 players + 50 bullets + 18 orbs is around **4–6 KB** per update
+- At 30 Hz that's **120–180 KB/sec per player**, or **720+ KB/sec total for a 6-player match**
+- JSON.parse() on the client also creates many temporary objects, triggering GC
+
+Instead the server encodes state into a raw binary `Buffer`:
+
+```
+Header   20 bytes  — tick counter, elapsed time, scores, match time limit
+Players  ~60 bytes each — x/y as UInt16, hp/shield as UInt8, flags as 1 byte
+Bullets  10 bytes each — x/y/vx/vy packed tight
+Orbs, MobBullets, Grenades, Traps similarly packed
+```
+
+The same 6-player update is now around **400 bytes** — roughly 10× smaller. The server builds this once and calls `ws.send(buffer, { binary: true })` for each player. No per-player serialisation, no string allocation, no JSON overhead.
+
+The flags byte is a good example of the packing approach — 8 boolean states in one byte using bitwise OR:
+
+```js
+let flags = 0;
+if (p.alive)          flags |= 1;
+if (p.swordOn)        flags |= 2;
+if (p.novaOn)         flags |= 4;
+if (p.hookOn)         flags |= 8;
+if (p.barrierOn)      flags |= 16;
+// etc.
+```
+
+For less-frequent data — camp mob positions, tower HP, consumable slots — plain JSON goes out every 4 broadcast ticks (~133 ms). These change slowly so the larger payload is acceptable at that rate.
 
 ### Keeping it smooth despite lag
 
-Internet connections always have some delay. To hide it, two things happen simultaneously:
+Even on a fast connection there's always a few milliseconds of delay. Two techniques hide it:
 
-**Local prediction** — your character moves on your screen the moment you press a key, without waiting for the server to confirm. If the server disagrees slightly it blends smoothly. Big gaps snap.
+**Local prediction** — your character moves the moment you press a key, without waiting for the server to confirm. The server's authoritative position arrives ~50 ms later. If it's close, the client blends toward it smoothly. If it's far off (packet loss, big lag spike), it hard-snaps. Only position and velocity are predicted — HP, cooldowns, and ability state are always taken from the server.
 
-**Interpolation** — other players are shown slightly in the past (34 ms by default), smoothly sliding between server snapshots rather than jumping.
+**Snapshot interpolation** — remote players and mobs are rendered from a rolling buffer of the last 10 server snapshots. Rather than jumping to each new snapshot the moment it arrives, the client renders from 34 ms in the past, always blending between two known positions. This makes movement look completely smooth even if packets arrive slightly unevenly.
 
-### Sending updates efficiently
+The 34 ms buffer was chosen to be exactly 2 network frames (at 30 Hz = 33.3 ms per frame). Any smaller and a single late packet causes a visible stutter. Any larger and the game starts to feel sluggish.
 
-Rather than sending JSON text every tick, the server packs the entire game state into raw binary bytes. A full update for 6 players, 50 bullets, and 18 orbs comes to roughly 400 bytes. Crucially, this packet is built **once per tick** and the same bytes are sent to every player — no extra serialisation work per player.
+### How matchmaking works without a database
+
+There's no database at all. Players join a queue stored in a plain JavaScript array. When 6 players are in the queue, or 15 seconds pass with 2+ players waiting, the server calls `createMatch()`:
+
+```js
+const match = {
+  id: ++matchIdCounter,
+  players: [...],
+  bullets: [], camps: [], orbs: [],
+  score: {}, gameOver: false
+};
+matches.set(match.id, match);  // Map<number, match>
+```
+
+Each match is a plain object in a `Map`. When a match ends it's deleted. No Redis, no Postgres, no sessions — just memory. For a game server where matches last 5 minutes this is completely fine.
 
 ### The level and talent system
 
-XP and levelling are handled entirely by the server so they can't be spoofed:
+XP and levelling are fully server-authoritative for the same reason everything else is:
 
 | Action | XP earned |
 |---|---|
@@ -79,7 +143,66 @@ XP and levelling are handled entirely by the server so they can't be spoofed:
 | Pick up an orb | 12 |
 | Clear a camp | 28 – 180 depending on camp type |
 
-At levels 2, 4, 6, 8, and 10 you unlock a talent pick. A compact panel slides up from the bottom of the screen — the game keeps running while you decide. Your choice goes to the server, which checks it against a whitelist of 90 valid talent IDs before applying it.
+At levels 2, 4, 6, 8, and 10 the server sends a `levelUp` message to that player's socket only. The client shows a small panel at the bottom of the screen — **the game keeps running, nothing pauses**. When the player picks a talent, the client applies it immediately for responsiveness, then sends `{ type: 'talentPick', talentId, tier }` to the server. The server checks the talent ID against a hardcoded whitelist of all 90 valid IDs, verifies the tier is actually in that player's unlock queue, then applies the stat changes on its own authoritative copy of the player.
+
+---
+
+## How the renderer works
+
+### Why PixiJS instead of a game engine
+
+The renderer is PixiJS v7 — a WebGL 2D library, not a game engine. The distinction matters.
+
+A full game engine (Unity, Godot, Phaser) bundles physics, audio, input handling, asset pipelines, and a scene graph. Taking all of that just for rendering means the engine is fighting the server-authoritative architecture: Phaser wants to own the physics loop and position objects itself. Since the physics runs on the server and positions arrive over the wire, any engine physics would need to be completely disabled — at which point you're carrying all that weight for nothing.
+
+PixiJS only does one thing: draw things on screen via WebGL. That's exactly what the client needs. Everything else (input, physics sim, networking, state) is handled by hand.
+
+### Why WebGL instead of Canvas 2D
+
+The arena can have 6 players, ~50 bullets, 18 orbs, 25+ jungle mobs, particle effects, and a full tile map on screen at once. Canvas 2D draws each thing one at a time on the CPU — every `drawImage` is a separate call. At 60 fps with hundreds of objects, that saturates the CPU.
+
+WebGL works differently. PixiJS batches all visible sprites into a single draw call per texture atlas, then hands the whole batch to the GPU at once. The GPU renders all 200 sprites in the same time it would take Canvas 2D to render one. On a mid-range machine the WebGL path runs at ~2.5 ms per frame, leaving over 60% of the frame budget for everything else.
+
+### Why a Canvas 2D overlay on top of PixiJS
+
+PixiJS handles sprites and the tile map. A second `<canvas>` element sits on top at the same size, using plain Canvas 2D. This overlay handles:
+
+- **Sprite art** — all character and mob sprites are drawn in code via Canvas 2D calls (gradients, arcs, `fillRect`, custom shapes). Trying to do this inside PixiJS would mean creating textures from canvas on every animation frame, which is expensive. The overlay renders sprites directly, no texture round-trip.
+- **Damage numbers and floating text** — short-lived, constantly changing strings. Canvas 2D `fillText` is faster here than creating and destroying PixiJS Text objects.
+- **HUD overlays** — health bars over characters, cooldown rings, ability indicators.
+
+The two layers are composited by the browser automatically — PixiJS draws the world, Canvas 2D draws UI and sprites on top, and they never touch each other's draw calls.
+
+### Why all sprites are drawn in code
+
+There are no image files in the project — no PNGs, no sprite sheets downloaded from a CDN. Every character and mob is drawn from scratch using `OffscreenCanvas` and Canvas 2D primitives at startup.
+
+The reason is control and portability. Pixel art needs specific sizes for different screen scales. If you ship a 32×32 PNG and scale it up, it blurs (or requires `image-rendering: pixelated` which browsers handle inconsistently). Generating at the exact needed resolution always produces a crisp result regardless of device.
+
+The generation runs in the background using `requestAnimationFrame`, one entity per frame. On a 60 Hz display that's about 14 frames (~233 ms) to generate all 14 entity types — invisible to the player because the title screen is showing during that time.
+
+```js
+function generateNext() {
+  buildOneCharacterSheet();            // ~7 ms of canvas work per entity
+  requestAnimationFrame(generateNext); // yield back to the browser between each
+}
+```
+
+Once generated, each sheet is stored in a global `SPRITE_SHEETS` map and never regenerated. The animation system reads from this cache for the rest of the session.
+
+### How animation state works
+
+Each entity has an `angle` that the server tracks and sends in state updates. The client maps this to a sprite row:
+
+```
+Row 0–3:   idle frames (4 directions × 1 frame each in row-based mode)
+Row 4–7:   walk frames
+Row 8–11:  attack frames
+Row 12–15: ability / special frames
+Row 16:    death frame
+```
+
+The current `state` (idle / walk / attack / dead) is inferred on the client from the server data: if the player is firing, `state = 'attack'`; if velocity > 0, `state = 'walk'`; etc. This avoids sending redundant animation state over the wire.
 
 ---
 
@@ -242,3 +365,4 @@ public/
   maps/                Saved map files (JSON)
   screenshots/         Screenshots for this README
 ```
+
