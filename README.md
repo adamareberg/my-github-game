@@ -176,15 +176,17 @@ There are actually two canvas elements stacked on top of each other. PixiJS owns
 
 The browser composites both canvases together automatically.
 
-### Pre-rendered sprites
+### How sprites work
 
-There are no image files in this project. No PNGs, no downloaded sprite sheets. Every character and mob is drawn from scratch at startup using Canvas 2D drawing commands (rectangles, circles, gradients, custom shapes), then baked into an `OffscreenCanvas` sprite sheet that lives in memory for the rest of the session.
+The sprite system has two layers.
 
-This is called pre-rendering. You do the expensive drawing work once up front, save the result as a bitmap, and then every frame you just copy pixels from that bitmap instead of re-drawing the shape from scratch. Copying pixels is extremely fast compared to re-executing all the drawing commands.
+**Custom PNG sheets** are the primary path. Through the map editor you can upload your own sprite sheet PNG for any class or mob. The editor lets you define how the sheet is laid out: how many columns, which rows are idle, walk, attack, and so on. When the game loads, it reads these assignments and draws characters directly from the uploaded images.
 
-The reason for generating them in code rather than shipping PNG files is control over resolution. If you ship a 32x32 PNG and scale it up on a high-DPI display, it blurs. Generating at the exact right size always gives a clean result on any screen.
+**Procedural fallback** kicks in for any entity that does not have a custom sheet assigned. The game generates a placeholder sprite from scratch using Canvas 2D drawing commands (rectangles, circles, gradients), bakes the result into an `OffscreenCanvas`, and uses that. This means the game always has something to display even before you have set up any art.
 
-Generation runs in the background one entity per frame using `requestAnimationFrame` to yield control back to the browser between each one:
+Both paths end up in the same place: a bitmap in memory that the renderer reads from each frame. Copying pixels from a cached bitmap is very fast compared to re-drawing geometry from commands every frame. The work gets done once at startup, then the result is reused for the rest of the session.
+
+The procedural generation is spread across frames using `requestAnimationFrame` so it does not block the title screen:
 
 ```js
 function generateNext() {
@@ -192,8 +194,6 @@ function generateNext() {
   requestAnimationFrame(generateNext); // give the browser a frame to breathe
 }
 ```
-
-On a 60 Hz display that is 14 frames to generate all 14 entity types, about 233 ms total. The title screen is showing during that time so the player never sees it. After startup the sheets are cached and never rebuilt.
 
 ### How animation direction works
 
@@ -344,7 +344,7 @@ Fixing performance problems stops the game from stuttering. Making it actually f
 
 **Object pools.** Particles, bullet trails, damage numbers, and gold floats are all pre-allocated at startup and reused. This eliminates the garbage collection pauses that used to cause occasional frame drops even when the CPU had headroom.
 
-**Sprite caching.** Drawing a character from geometry commands (arcs, rectangles, gradients) each frame is expensive. Doing it once and storing the result as a bitmap means each draw is a single fast pixel copy. The GPU handles it in fractions of a millisecond.
+**Sprite caching.** Whether a sprite comes from an uploaded PNG or from procedural generation, it ends up as a cached bitmap in memory. Every frame is just a pixel copy from that cache. No re-drawing, no re-decoding, no wasted work.
 
 The result on a mid-range machine: about 2.5 ms of CPU time per 6.94 ms frame at 144 Hz, which is 64% headroom. The game can handle a full 6-player match at max load without dropping a frame.
 
