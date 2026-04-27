@@ -27,6 +27,38 @@ The whole thing runs on a single Node.js process with no database, no framework,
 
 ---
 
+## If you are new to game development
+
+This section is for people who know how to use a computer and maybe done some basic coding, but have never built a game before. The rest of the README goes into specific technical decisions, but this part explains the basics of why those decisions needed to happen at all.
+
+**Why is multiplayer so hard?**
+
+A single-player game is simple. Your code runs, things move on screen, you are done. Multiplayer means multiple computers need to agree on what is happening at every moment. Player A is on a laptop in one city. Player B is on a desktop in another. They both press buttons at the same time. Who moved first? What if a message got delayed? What if someone cheats? Every one of these questions needs a real answer, or the game breaks.
+
+**What is a game server?**
+
+A game server is a program that sits in the middle and acts as the single source of truth. Instead of Player A's computer telling Player B's computer what happened, both players send their inputs to the server, and the server decides what actually happened and tells everyone. This project's server runs in Node.js, which is JavaScript that runs outside a browser, on a machine that both players can connect to.
+
+**What is a game loop?**
+
+Games do not wait for something to happen. They run a loop, over and over, usually 60 times per second. Each loop tick updates every object in the game: move all the bullets, check all the collisions, apply all the damage, figure out who died. This project runs that loop on the server so every player is working from the exact same physics simulation.
+
+**Why does the game need to be so fast?**
+
+60 updates per second means each tick has to finish in about 16 milliseconds. If anything takes longer, the game stutters. JavaScript has some specific traps that make this harder, like garbage collection (where the language stops to clean up unused memory), and these had to be worked around carefully. A lot of the technical decisions in this project exist because of that 16 ms budget.
+
+**What is WebGL and why does rendering matter?**
+
+The browser has two ways to draw things on screen. Canvas 2D is the simple one: you call drawing commands and it draws them one at a time. WebGL is the fast one: it talks directly to the graphics card, which can draw thousands of things at once in parallel. A game with 200 moving objects on screen needs WebGL or the drawing alone eats the entire 16 ms frame budget.
+
+**What is a WebSocket?**
+
+A regular website request works like a letter: you send a request, wait for a reply, the connection closes. A WebSocket is more like a phone call: the connection stays open and either side can say something at any time. Multiplayer games need WebSockets because the server needs to push new game state to players 30 times per second without waiting for each player to ask for it.
+
+With that context, the sections below should make a lot more sense.
+
+---
+
 ## Tech stack
 
 | Layer | What I used |
@@ -383,10 +415,24 @@ public/
     combat.js          Damage, bullets, kill logic
     renderer-pixi.js   Draws everything with WebGL (PixiJS)
     levelup.js         XP, 10-level system, 90-talent tree
-    sprite-gen.js      Generates all character art in code
+    sprite-gen.js      Procedural fallback sprites generated in code
     hud.js             Health bar, timer, score
     ai.js              Bot and jungle mob behaviour
     map.js             Map layout and mob definitions
   maps/                Saved map files (JSON)
+    multiplayer/       Maps used in online matches
+    3v3/               3v3 mode maps
+    local2p/           Local two-player maps
+    offline/           Single-player / practice maps
+  sprites/             All PNG sprite assets
+    players/           Player class sprite sheets
+    mobs/              Enemy and jungle mob sprite sheets
+    tilesets/          Tile and decoration sprites for the map
+    vfx/               Visual effect sprites
+    ui/                UI icons and elements
+    misc/              Cursor and other shared sprites
+  editor2/             The in-browser map editor (React UI + Canvas 2D)
+    assets/            Editor-specific assets
+  audio/               Sound files
   screenshots/         Screenshots for this README
 ```
