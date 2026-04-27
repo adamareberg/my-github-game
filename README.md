@@ -27,6 +27,22 @@ The whole thing runs on a single Node.js process with no database, no framework,
 
 ---
 
+## Why I built it this way
+
+I want to be upfront about something. This is not the most practical way to build a game.
+
+If you want to ship a polished game, you use Unity, Godot, or Unreal. They handle the physics, the rendering, the audio, the input, the networking abstractions, all of it. Thousands of developers have already solved those problems and packaged them up for you. Using a real engine is faster, more reliable, and produces better results for most people.
+
+I chose not to do that on purpose.
+
+The reason is that I wanted to deeply understand how real-time multiplayer networking actually works, not just how to call an API that handles it for me. Things like: how do you keep two players in sync when messages can arrive late or out of order? How do you stop cheaters when the client could be modified to send anything? How do you make movement feel instant when there is a 50 ms gap between the player pressing a button and the server processing it? These are questions you never have to think about in a game engine because the engine handles them. Building everything from scratch forced me to actually understand the answers.
+
+It was also genuinely one of the hardest things I have built. JavaScript is a single-threaded language that was not designed for 60 Hz game loops running physics simulations. Getting it to perform well meant going deep into garbage collection, memory allocation patterns, binary data encoding, and browser rendering pipelines. Every part of the stack had something that needed to be figured out the hard way.
+
+So this project is less about "the best way to make a game" and more about understanding what is happening underneath the games you play every day. If you want to learn multiplayer networking at a real technical level, building it yourself is the only way that actually sticks.
+
+---
+
 ## If you are new to game development
 
 This section is for people who know how to use a computer and maybe done some basic coding, but have never built a game before. The rest of the README goes into specific technical decisions, but this part explains the basics of why those decisions needed to happen at all.
@@ -400,6 +416,85 @@ node server.js
 ```
 
 Open `http://localhost:9090` in two browser tabs and click Play in both to start a match.
+
+---
+
+## Resources that helped build this
+
+These are the actual articles, videos, and docs I kept coming back to during this project. If you want to go deeper on any of the topics covered in this README, these are good starting points.
+
+### Multiplayer networking
+
+**Gabriel Gambetta - Fast-Paced Multiplayer**
+https://www.gabrielgambetta.com/client-server-game-architecture.html
+
+This is the best series of articles on real-time multiplayer networking I have found. It covers server authority, client prediction, lag compensation, and snapshot interpolation in a way that is actually understandable. If you read one thing from this list, make it this.
+
+**Gaffer on Games - Networking for Game Programmers**
+https://gafferongames.com
+
+Glenn Fiedler wrote the foundational articles on game networking. Covers UDP vs TCP, reliable packet ordering, and how to build a custom transport. Goes deeper than most resources.
+
+**Valve Developer Wiki - Source Multiplayer Networking**
+https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking
+
+How Valve actually implemented networking in games like CS:GO. The concepts behind lag compensation and the interpolation buffer come from here. Reading how a professional studio solved these problems is very useful.
+
+---
+
+### JavaScript performance
+
+**V8 Blog**
+https://v8.dev/blog
+
+The V8 team (the engine that runs Node.js and Chrome) writes about how JavaScript is optimized internally. If you want to understand why object allocation causes GC pauses or how to write code that the JIT compiler can optimize, this is the source.
+
+**MDN - Memory Management**
+https://developer.mozilla.org/en-US/docs/Web/JavaScript/Memory_management
+
+Plain explanation of how garbage collection works in JavaScript and why it matters for performance-sensitive code.
+
+---
+
+### WebGL and rendering
+
+**PixiJS official docs and examples**
+https://pixijs.com
+
+The official PixiJS docs are well written and the examples section shows real use cases. Good starting point before going into the source.
+
+**WebGL Fundamentals**
+https://webglfundamentals.org
+
+If you want to understand what PixiJS is actually doing under the hood, this site teaches raw WebGL from scratch. Very detailed, no assumptions.
+
+---
+
+### YouTube channels worth following
+
+**Freya Holmér** - Game math, vectors, interpolation, bezier curves. Very visual explanations that make concepts like lerp and smoothstep actually make sense.
+
+**Sebastian Lague** - Builds game systems from scratch (pathfinding, terrain generation, physics). Similar spirit to this project, great for learning by doing.
+
+**SimonDev** - Covers 3D game rendering and Three.js. Good for understanding how rendering pipelines work in the browser.
+
+**Fireship** - Short sharp videos on JavaScript, Node.js, and web tech. Good for catching up on tools and concepts quickly.
+
+**The Coding Train (Daniel Shiffman)** - Creative coding in JavaScript. Good for people coming from a non-game background who want to learn how to draw and animate things in the browser.
+
+---
+
+### WebSockets and Node.js
+
+**MDN WebSocket API**
+https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
+
+The definitive reference for how WebSockets work in the browser. Covers the full API, event model, and binary data handling.
+
+**ws library (the WebSocket server used in this project)**
+https://github.com/websockets/ws
+
+The `ws` GitHub page has clear examples for everything from basic connections to binary message handling and broadcast patterns.
 
 ---
 
