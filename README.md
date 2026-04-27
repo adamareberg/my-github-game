@@ -1,6 +1,7 @@
+
 # Reflex Arena: Resource Wars
 
-> A top-down multiplayer arena game built entirely in vanilla JavaScript and Node.js — no frameworks, no build tools, no game engine.
+> A top-down multiplayer arena game built from scratch in vanilla JavaScript and Node.js. No frameworks, no game engine, no build tools.
 
 ---
 
@@ -21,9 +22,9 @@
 
 ## What I built
 
-Reflex Arena is a real-time multiplayer MOBA — think early League of Legends or Warcraft 3 custom maps, running entirely in a browser tab. Players pick one of six classes, fight in a shared arena, farm jungle camps for gold and XP, level up with a talent tree, and push toward the enemy base.
+Reflex Arena is a real-time multiplayer MOBA that runs entirely in a browser tab. Think early League of Legends or Warcraft 3 custom maps. Players pick one of six classes, fight in a shared arena, farm jungle camps for gold and XP, level up with a talent tree, and push toward the enemy base.
 
-The whole thing runs on a single Node.js process with no database get...(will add later), no framework, and no build step. Everything from the physics engine to the map editor to the sprite art is written from scratch in plain JavaScript.
+The whole thing runs on a single Node.js process with no database, no framework, and no build step. Everything from the physics to the map editor to the sprite art is written from scratch in plain JavaScript.
 
 ---
 
@@ -32,8 +33,8 @@ The whole thing runs on a single Node.js process with no database get...(will ad
 | Layer | What I used |
 |---|---|
 | Server | Node.js (ESM), `ws` for WebSockets, `multer` for file uploads |
-| Renderer | PixiJS v7 (WebGL) with a Canvas 2D overlay for text and sprites |
-| Language | Vanilla JavaScript — no TypeScript, no React, no bundler |
+| Renderer | PixiJS v7 (WebGL) with a Canvas 2D overlay for sprites and UI |
+| Language | Vanilla JavaScript. No TypeScript, no React, no bundler |
 | Physics | Fixed-timestep loop at 60 Hz, runs entirely on the server |
 | Networking | Binary state packets at 30 Hz, player inputs at 125 Hz |
 
@@ -43,83 +44,85 @@ The whole thing runs on a single Node.js process with no database get...(will ad
 
 ### Why WebSockets?
 
-The first question was what transport to use. HTTP request-response would mean the client has to constantly ask "what changed?" — that's polling, and it's wasteful and slow. WebSockets give you a persistent two-way connection where the server can push data the moment something happens, with no handshake overhead on each message. For a game running at 30 Hz that's 30 unsolicited pushes per second — impossible with regular HTTP.
+Normal HTTP works like this: your browser asks the server "what changed?", the server replies, connection closes. For a game you'd have to do this hundreds of times per second. That's called polling and it's slow and wasteful.
+
+WebSockets are different. The connection stays open and the server can push data to every player the moment something changes, with no extra back-and-forth. For a game running at 30 updates per second that's exactly what you need.
 
 ### The server owns everything
 
-The biggest architectural decision was making the server fully authoritative. Every player action — movement, shooting, buying items, using abilities — is validated server-side before anything happens. The client never trusts itself.
+The most important decision in the project was making the server fully authoritative. Every action a player takes gets validated on the server before anything actually happens. The browser never trusts itself.
 
 When you press W to move forward:
 
 ```
 1. Browser sends { ax: 0, ay: -1, angle: 1.57 } to the server
-2. Server runs physics, moves your character
-3. Server sends updated game state back to all players
-4. Screens update
+2. Server runs physics and moves your character
+3. Server sends the updated game state back to all players
+4. Everyone's screen updates
 ```
 
-The alternative — trusting the client — means anyone can open the browser console and set `player.x = enemyBase.x` or `player.damage = 99999`. Server authority makes that impossible because the server ignores positions it didn't calculate itself and validates every ability use against a cooldown it tracks internally.
+If you trusted the client instead, anyone could open the browser console and type `player.x = enemyBase.x` or `player.damage = 99999`. Making the server authoritative makes that impossible because the server only accepts inputs, never positions.
 
 ### Why 30 Hz broadcast, not 60 Hz?
 
-The server runs physics at 60 Hz internally but only sends state to clients every 2 ticks (30 Hz). This halves bandwidth and broadcast CPU with no perceptible difference in feel, because:
+The server runs physics at 60 Hz internally but only sends updates to players every 2 ticks (30 Hz). This cuts bandwidth and CPU in half with no visible difference, because:
 
-- At 30 Hz, updates arrive every ~33 ms
-- The client holds a 34 ms interpolation buffer, so it always has two snapshots to blend between
-- Players can't actually perceive individual network updates — they see the smooth interpolated output
+- At 30 Hz, updates arrive every 33 ms
+- The client keeps a small 34 ms buffer, so it always has two snapshots to smoothly blend between
+- Your eyes can't actually see individual network packets, you see the smooth blended result
 
-Going higher than 30 Hz would cost real bandwidth and server CPU for gains the human eye can't see.
+Going to 60 Hz would double the bandwidth cost for a benefit no one can perceive.
 
 ### Why 125 Hz for player input?
 
-Input goes the other direction — from client to server. This is sent at 125 Hz (every 8 ms) because shooting and dashing happen in single frames. If input only sent at 30 Hz, a tap-fire shot could be missed entirely. 125 Hz ensures the server sees every intent, even for actions that last less than one screen frame.
+Input goes the other way, from client to server. This runs at 125 Hz (every 8 ms) because some actions like tap-fire shots happen in a single frame. If input only sent at 30 Hz, a quick click could get missed entirely. 125 Hz makes sure the server sees every action even if it lasts less than one screen frame.
 
-### Binary protocol instead of JSON
+### Binary data instead of JSON
 
-The naive approach is to `JSON.stringify()` the game state and send that as text. The problem is size and speed:
+The simple approach is to send the game state as text using JSON. The problem is size:
 
-- JSON for 6 players + 50 bullets + 18 orbs is around **4–6 KB** per update
-- At 30 Hz that's **120–180 KB/sec per player**, or **720+ KB/sec total for a 6-player match**
-- JSON.parse() on the client also creates many temporary objects, triggering GC
+- JSON for 6 players + 50 bullets + 18 orbs is around **4 to 6 KB** per update
+- At 30 Hz that's **120 to 180 KB/sec per player**, or **720+ KB/sec total for a 6-player match**
 
-Instead the server encodes state into a raw binary `Buffer`:
+Instead the server encodes everything into raw binary bytes:
 
 ```
-Header   20 bytes  — tick counter, elapsed time, scores, match time limit
-Players  ~60 bytes each — x/y as UInt16, hp/shield as UInt8, flags as 1 byte
-Bullets  10 bytes each — x/y/vx/vy packed tight
-Orbs, MobBullets, Grenades, Traps similarly packed
+Header   20 bytes  (tick counter, time, scores, match length)
+Players  ~60 bytes each (x/y position, hp, shield, flags)
+Bullets  10 bytes each (position and velocity packed tight)
 ```
 
-The same 6-player update is now around **400 bytes** — roughly 10× smaller. The server builds this once and calls `ws.send(buffer, { binary: true })` for each player. No per-player serialisation, no string allocation, no JSON overhead.
+The same update is now around **400 bytes**. That is roughly 10x smaller. The server builds the binary packet once and sends it to every player. No JSON, no strings, no waste.
 
-The flags byte is a good example of the packing approach — 8 boolean states in one byte using bitwise OR:
+A good example of how the packing works is the flags byte. Instead of sending 8 true/false values separately, they all get packed into a single byte using bitwise OR:
 
 ```js
 let flags = 0;
-if (p.alive)          flags |= 1;
-if (p.swordOn)        flags |= 2;
-if (p.novaOn)         flags |= 4;
-if (p.hookOn)         flags |= 8;
-if (p.barrierOn)      flags |= 16;
+if (p.alive)      flags |= 1;
+if (p.swordOn)    flags |= 2;
+if (p.novaOn)     flags |= 4;
+if (p.hookOn)     flags |= 8;
+if (p.barrierOn)  flags |= 16;
 // etc.
 ```
 
-For less-frequent data — camp mob positions, tower HP, consumable slots — plain JSON goes out every 4 broadcast ticks (~133 ms). These change slowly so the larger payload is acceptable at that rate.
+8 booleans, 1 byte.
+
+Slower-changing data like camp mob positions and tower HP goes out as normal JSON every 133 ms. It changes rarely enough that the larger size is fine at that rate.
 
 ### Keeping it smooth despite lag
 
-Even on a fast connection there's always a few milliseconds of delay. Two techniques hide it:
+Even on a fast connection there are always a few milliseconds of delay. Two techniques hide it:
 
-**Local prediction** — your character moves the moment you press a key, without waiting for the server to confirm. The server's authoritative position arrives ~50 ms later. If it's close, the client blends toward it smoothly. If it's far off (packet loss, big lag spike), it hard-snaps. Only position and velocity are predicted — HP, cooldowns, and ability state are always taken from the server.
+**Local prediction:** Your character moves the moment you press a key, without waiting for the server to reply. The server's confirmed position arrives about 50 ms later. If it matches closely, the client blends toward it smoothly. If there was a lag spike and you are way off, it snaps. Only position and velocity get predicted. HP, cooldowns, and abilities always come from the server.
 
-**Snapshot interpolation** — remote players and mobs are rendered from a rolling buffer of the last 10 server snapshots. Rather than jumping to each new snapshot the moment it arrives, the client renders from 34 ms in the past, always blending between two known positions. This makes movement look completely smooth even if packets arrive slightly unevenly.
+**Snapshot interpolation:** Other players and mobs are drawn from a rolling buffer of the last 10 snapshots from the server. Instead of jumping to each new position the moment it arrives, the client renders 34 ms behind, always blending between two known positions. Movement looks smooth even if packets arrive slightly unevenly.
 
-The 34 ms buffer was chosen to be exactly 2 network frames (at 30 Hz = 33.3 ms per frame). Any smaller and a single late packet causes a visible stutter. Any larger and the game starts to feel sluggish.
+The 34 ms buffer equals exactly 2 network frames at 30 Hz (33.3 ms each). Smaller than that and one late packet causes a visible stutter. Larger and the game starts to feel sluggish.
 
-### How matchmaking works without a database
+### Matchmaking without a database
 
-There's no database at all. Players join a queue stored in a plain JavaScript array. When 6 players are in the queue, or 15 seconds pass with 2+ players waiting, the server calls `createMatch()`:
+There is no database. Players join a queue stored in a plain JavaScript array. When 6 players are ready, or 15 seconds pass with 2+ players waiting, the server creates a match:
 
 ```js
 const match = {
@@ -128,22 +131,22 @@ const match = {
   bullets: [], camps: [], orbs: [],
   score: {}, gameOver: false
 };
-matches.set(match.id, match);  // Map<number, match>
+matches.set(match.id, match);
 ```
 
-Each match is a plain object in a `Map`. When a match ends it's deleted. No Redis, no Postgres, no sessions — just memory. For a game server where matches last 5 minutes this is completely fine.
+Each match is just a plain object. When it ends it gets deleted. No Redis, no Postgres, no sessions. For matches that last 5 minutes this works perfectly fine.
 
 ### The level and talent system
 
-XP and levelling are fully server-authoritative for the same reason everything else is:
+XP and leveling are server-controlled for the same reason everything else is. The server tracks all the numbers:
 
 | Action | XP earned |
 |---|---|
-| Kill a player | 120 + their level × 15 |
+| Kill a player | 120 + their level x 15 |
 | Pick up an orb | 12 |
-| Clear a camp | 28 – 180 depending on camp type |
+| Clear a camp | 28 to 180 depending on type |
 
-At levels 2, 4, 6, 8, and 10 the server sends a `levelUp` message to that player's socket only. The client shows a small panel at the bottom of the screen — **the game keeps running, nothing pauses**. When the player picks a talent, the client applies it immediately for responsiveness, then sends `{ type: 'talentPick', talentId, tier }` to the server. The server checks the talent ID against a hardcoded whitelist of all 90 valid IDs, verifies the tier is actually in that player's unlock queue, then applies the stat changes on its own authoritative copy of the player.
+When you hit level 2, 4, 6, 8, or 10 the server sends a `levelUp` message to your socket only. A small panel slides up at the bottom of the screen and **the game keeps running, nothing pauses** (like Dota or LoL). You pick a talent, it applies immediately on the client for feel, and the choice gets sent to the server. The server checks the talent ID against a whitelist of all 90 valid IDs, confirms you actually unlocked that tier, then applies the stat change on its own copy of your character.
 
 ---
 
@@ -151,176 +154,176 @@ At levels 2, 4, 6, 8, and 10 the server sends a `levelUp` message to that player
 
 ### Why PixiJS instead of a game engine
 
-The renderer is PixiJS v7 — a WebGL 2D library, not a game engine. The distinction matters.
+The renderer uses PixiJS v7, which is a WebGL drawing library, not a full game engine. The difference matters.
 
-A full game engine (Unity, Godot, Phaser) bundles physics, audio, input handling, asset pipelines, and a scene graph. Taking all of that just for rendering means the engine is fighting the server-authoritative architecture: Phaser wants to own the physics loop and position objects itself. Since the physics runs on the server and positions arrive over the wire, any engine physics would need to be completely disabled — at which point you're carrying all that weight for nothing.
+A full game engine like Unity, Godot, or Phaser comes with its own physics system, its own input handling, its own game loop. The problem is this project's physics run on the server. If you used Phaser, you would have to disable all of its physics just to get it to render things in the positions the server sent. You would be dragging along a ton of code you can't use.
 
-PixiJS only does one thing: draw things on screen via WebGL. That's exactly what the client needs. Everything else (input, physics sim, networking, state) is handled by hand.
+PixiJS only draws things on screen. Everything else, the input, physics, networking, and state, is handled manually. That is a much cleaner fit.
 
 ### Why WebGL instead of Canvas 2D
 
-The arena can have 6 players, ~50 bullets, 18 orbs, 25+ jungle mobs, particle effects, and a full tile map on screen at once. Canvas 2D draws each thing one at a time on the CPU — every `drawImage` is a separate call. At 60 fps with hundreds of objects, that saturates the CPU.
+The arena has 6 players, 50+ bullets, 18 orbs, 25 jungle mobs, particles, and a full tile map on screen at the same time. Canvas 2D draws each object one at a time on the CPU. With hundreds of objects at 60 fps that starts to saturate the processor.
 
-WebGL works differently. PixiJS batches all visible sprites into a single draw call per texture atlas, then hands the whole batch to the GPU at once. The GPU renders all 200 sprites in the same time it would take Canvas 2D to render one. On a mid-range machine the WebGL path runs at ~2.5 ms per frame, leaving over 60% of the frame budget for everything else.
+WebGL batches everything together and sends it to the GPU in one call. The GPU renders 200 sprites in the same time Canvas 2D handles one. On a normal machine the WebGL path runs at about 2.5 ms per frame, leaving over 60% of the frame budget free.
 
 ### Why a Canvas 2D overlay on top of PixiJS
 
-PixiJS handles sprites and the tile map. A second `<canvas>` element sits on top at the same size, using plain Canvas 2D. This overlay handles:
+There are actually two canvas elements stacked on top of each other. PixiJS owns the bottom one and draws the tile map and the world. A second canvas sits on top using plain Canvas 2D. This overlay handles:
 
-- **Sprite art** — all character and mob sprites are drawn in code via Canvas 2D calls (gradients, arcs, `fillRect`, custom shapes). Trying to do this inside PixiJS would mean creating textures from canvas on every animation frame, which is expensive. The overlay renders sprites directly, no texture round-trip.
-- **Damage numbers and floating text** — short-lived, constantly changing strings. Canvas 2D `fillText` is faster here than creating and destroying PixiJS Text objects.
-- **HUD overlays** — health bars over characters, cooldown rings, ability indicators.
+- **Sprite art:** all character and mob sprites are drawn in code using Canvas 2D shapes. Doing this inside PixiJS would require converting canvas drawings into GPU textures every frame, which is slow. The overlay draws them directly.
+- **Damage numbers and floating text:** short-lived text that changes constantly. Canvas 2D text calls are faster than creating and destroying PixiJS text objects.
+- **In-world HUD:** health bars, cooldown rings, ability indicators drawn on top of characters.
 
-The two layers are composited by the browser automatically — PixiJS draws the world, Canvas 2D draws UI and sprites on top, and they never touch each other's draw calls.
+The browser composites both canvases together automatically.
 
-### Why all sprites are drawn in code
+### Why sprites are drawn in code
 
-There are no image files in the project — no PNGs, no sprite sheets downloaded from a CDN. Every character and mob is drawn from scratch using `OffscreenCanvas` and Canvas 2D primitives at startup.
+There are no image files in this project. No PNGs, no downloaded sprite sheets. Every character and mob is generated from scratch at startup using Canvas 2D drawing commands (rectangles, circles, gradients, custom shapes).
 
-The reason is control and portability. Pixel art needs specific sizes for different screen scales. If you ship a 32×32 PNG and scale it up, it blurs (or requires `image-rendering: pixelated` which browsers handle inconsistently). Generating at the exact needed resolution always produces a crisp result regardless of device.
+The reason is consistency across screen sizes. If you ship a 32x32 PNG and scale it up on a high-DPI display, it blurs unless you add special CSS that browsers handle differently. Generating sprites at the exact right size always gives a clean result.
 
-The generation runs in the background using `requestAnimationFrame`, one entity per frame. On a 60 Hz display that's about 14 frames (~233 ms) to generate all 14 entity types — invisible to the player because the title screen is showing during that time.
+Generation runs in the background one entity per frame, using `requestAnimationFrame` to yield control back to the browser between each one:
 
 ```js
 function generateNext() {
-  buildOneCharacterSheet();            // ~7 ms of canvas work per entity
-  requestAnimationFrame(generateNext); // yield back to the browser between each
+  buildOneCharacterSheet();            // about 7 ms of work
+  requestAnimationFrame(generateNext); // yield, come back next frame
 }
 ```
 
-Once generated, each sheet is stored in a global `SPRITE_SHEETS` map and never regenerated. The animation system reads from this cache for the rest of the session.
+On a 60 Hz display that is 14 frames to generate all 14 entity types, about 233 ms total. The title screen is showing during that time so the player never sees it. After startup the sheets are cached and never rebuilt.
 
-### How animation state works
+### How animation direction works
 
-Each entity has an `angle` that the server tracks and sends in state updates. The client maps this to a sprite row:
+The server tracks each entity's angle and sends it in every update. The client uses that angle to pick the right row in the sprite sheet:
 
 ```
-Row 0–3:   idle frames (4 directions × 1 frame each in row-based mode)
-Row 4–7:   walk frames
-Row 8–11:  attack frames
-Row 12–15: ability / special frames
-Row 16:    death frame
+Row 0-3:   idle (facing down, left, right, up)
+Row 4-7:   walking
+Row 8-11:  attacking
+Row 12-15: ability / special
+Row 16:    death
 ```
 
-The current `state` (idle / walk / attack / dead) is inferred on the client from the server data: if the player is firing, `state = 'attack'`; if velocity > 0, `state = 'walk'`; etc. This avoids sending redundant animation state over the wire.
+The animation state (idle, walk, attack, dead) is figured out on the client from the data that is already there. If the player is shooting, use the attack row. If velocity is above zero, use the walk row. This means the server does not need to send animation state at all, saving bytes on every packet.
 
 ---
 
 ## Performance problems I had to solve
 
-JavaScript runs on a single thread. If anything takes too long in the middle of a frame, the whole game stutters. These are the main problems I ran into and how I fixed them.
+JavaScript runs on a single thread. If anything takes too long in a frame, the whole game stutters. Here are the main problems I ran into.
 
 ---
 
 ### 1. Garbage collection spikes
 
-JavaScript automatically frees memory that's no longer needed. The problem is that this "garbage collection" pauses execution for a few milliseconds when it runs. If you're creating thousands of small objects every second, GC fires constantly.
+JavaScript frees unused memory automatically. The catch is that this "garbage collection" pauses execution for a few milliseconds each time it runs. If you create thousands of small objects every second, GC fires constantly.
 
-The original code created a fresh object every single frame for bullets, particles, and floating text:
+The original code created a fresh object for every bullet trail, particle, and floating number:
 
 ```js
-// Creates a new object 144 times per second — triggers GC constantly
+// Creates a new object 144 times per second
 bulletTrails.push({ x: b.x, y: b.y, life: 1, color: '#ff3355' });
 ```
 
-**The fix: object pools.** Pre-allocate a fixed array of slots at startup. When you need a new item, find a dead slot and reuse it. No new objects, no GC pressure.
+**The fix: object pools.** Pre-allocate a fixed list of slots at startup. When you need a new item, find a slot that is no longer in use and overwrite it. Zero new objects, zero GC pressure.
 
 ```js
 function addBulletTrail(x, y, color) {
   for (let i = 0; i < bulletTrails.length; i++) {
-    if (bulletTrails[i].life <= 0) {   // found a dead slot
+    if (bulletTrails[i].life <= 0) {
       bulletTrails[i].x = x;
       bulletTrails[i].y = y;
       bulletTrails[i].life = 1;
       bulletTrails[i].color = color;
-      return;                           // reused — zero allocation
+      return;
     }
   }
 }
 ```
 
-I applied this to bullets, particles, damage numbers, and gold floats. After warm-up, zero objects are created per frame.
+After warm-up, zero objects are created per frame.
 
 ---
 
 ### 2. Slow array removal with splice
 
-`Array.splice(i, 1)` removes an item from the middle of an array by shifting every item after it forward by one slot. On a 200-item particle array that's 200 moves per dead particle — every frame.
+`Array.splice(i, 1)` removes one item by shifting every item after it forward by one slot. On a 200-item particle array that means up to 200 moves per dead particle, every frame.
 
 ```js
-particles.splice(i, 1);  // O(n) — shifts everything after index i
+particles.splice(i, 1);  // O(n)
 ```
 
-**The fix: swap-and-pop.** For arrays where order doesn't matter (particles, impact rings, dash trails), move the last item into the gap, then remove the end.
+**The fix: swap-and-pop.** For arrays where order does not matter, move the last item into the gap, then remove the end. Two operations instead of potentially hundreds.
 
 ```js
-particles[i] = particles[particles.length - 1];  // one move
-particles.pop();                                   // one removal — O(1)
+particles[i] = particles[particles.length - 1];
+particles.pop();
 ```
 
 ---
 
 ### 3. The game loop was wasting CPU
 
-The original loop used a `MessageChannel` trick to fire faster than the monitor's refresh rate — sometimes 500+ times per second. Most of that work was invisible, and the loop was out of sync with the display which caused tearing.
+The original loop used a `MessageChannel` trick to fire faster than the screen refresh rate, sometimes 500+ times per second. Most of that work was thrown away, and being out of sync with the display caused visual tearing.
 
-Switching to `requestAnimationFrame` locked the loop to the monitor refresh rate. On a 144 Hz display the game now does ~2.5 ms of real work per 6.94 ms frame, leaving 64% headroom.
+Switching to `requestAnimationFrame` locks the loop to the monitor's refresh rate. On a 144 Hz display the game does about 2.5 ms of real work per 6.94 ms frame, leaving 64% headroom.
 
 ```js
-const UNCAP_FPS = false;  // use requestAnimationFrame — vsync-locked
+const UNCAP_FPS = false;  // locked to monitor refresh rate
 ```
 
 ---
 
 ### 4. DOM lookups on every frame
 
-The HUD updates 60 times per second. The original code called `document.getElementById` on every update — that's 60+ unnecessary DOM lookups per second for elements that never move.
+The HUD updates 60 times per second. The original code called `document.getElementById` on every update. That is 60+ unnecessary lookups per second for elements that never change position.
 
 ```js
-// Old — looks up the element every frame
+// Old: looks up the element every frame
 document.getElementById('hudHPFill').style.width = hp + '%';
 ```
 
-**The fix:** look up each element once at startup and store the reference.
+**The fix:** look up each element once at startup and save the reference.
 
 ```js
-const hpFill = document.getElementById('hudHPFill');  // once
+const hpFill = document.getElementById('hudHPFill');  // once at startup
 
-// Every frame — instant, no lookup
+// Every frame: instant, no lookup
 hpFill.style.width = hp + '%';
 ```
 
 ---
 
-### 5. Server allocating objects per input
+### 5. Server creating objects for every input
 
-The server receives up to 750 player inputs per second (6 players × 125 Hz). Each one used to create a new object:
+The server receives up to 750 player inputs per second (6 players at 125 Hz each). Each one used to create a new object:
 
 ```js
 p.input = { ax: 0, ay: -1, angle: 1.57, shoot: true };  // 750 new objects/sec
 ```
 
-**The fix:** mutate the existing object instead.
+**The fix:** update the existing object instead of replacing it.
 
 ```js
 p.input.ax    = 0;
 p.input.ay    = -1;
 p.input.angle = 1.57;
-p.input.shoot = true;   // zero allocations
+p.input.shoot = true;
 ```
 
 ---
 
 ### 6. Sprite generation blocking the screen
 
-All character and mob art is drawn in code at startup — no image files to download. The original approach generated all 14 character sheets back-to-back, which blocked the screen for around 6 seconds.
+Generating all 14 character sheets back-to-back at startup blocked the screen for about 6 seconds.
 
-**The fix:** generate one character per animation frame so the work spreads invisibly across 14 frames (~100 ms total).
+**The fix:** generate one character per animation frame so the work spreads across 14 frames invisibly.
 
 ```js
 function generateNext() {
-  buildOneCharacterSheet();            // ~7 ms of canvas work
-  requestAnimationFrame(generateNext); // yield, let browser paint, come back
+  buildOneCharacterSheet();
+  requestAnimationFrame(generateNext);
 }
 requestAnimationFrame(() => requestAnimationFrame(generateNext));
 ```
@@ -329,9 +332,9 @@ requestAnimationFrame(() => requestAnimationFrame(generateNext));
 
 ## The map editor
 
-Rather than hardcoding map layouts, I built a full in-browser map editor. It runs at `/editor2/` and lets you paint walls, place jungle camps and towers, set spawn points, and position shops — all visually on a canvas.
+Instead of hardcoding map layouts I built a full in-browser map editor. It runs at `/editor2/` and lets you paint walls, place jungle camps and towers, set spawn points, and position shops, all on a canvas.
 
-When you're done, clicking **Deploy to Multiplayer** saves the map JSON to the server and makes it the active map. The next match loads it automatically with no server restart.
+When you are done, clicking **Deploy to Multiplayer** saves the map to the server and makes it the active map. The next match loads it automatically with no server restart needed.
 
 ---
 
@@ -349,7 +352,7 @@ Open `http://localhost:9090` in two browser tabs and click Play in both to start
 ## File overview
 
 ```
-server.js              Game server — WebSocket connections, 60 Hz physics
+server.js              Game server, WebSocket connections, 60 Hz physics
 public/
   game.html            The page players load
   js/
@@ -365,4 +368,3 @@ public/
   maps/                Saved map files (JSON)
   screenshots/         Screenshots for this README
 ```
-
