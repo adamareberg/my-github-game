@@ -1,4 +1,3 @@
-
 # Reflex Arena: Resource Wars
 
 > A top-down multiplayer arena game built from scratch in vanilla JavaScript and Node.js. No frameworks, no game engine, no build tools.
@@ -34,7 +33,8 @@ The whole thing runs on a single Node.js process with no database, no framework,
 |---|---|
 | Server | Node.js (ESM), `ws` for WebSockets, `multer` for file uploads |
 | Renderer | PixiJS v7 (WebGL) with a Canvas 2D overlay for sprites and UI |
-| Language | Vanilla JavaScript. No TypeScript, no React, no bundler |
+| Game code | Vanilla JavaScript. No TypeScript, no bundler |
+| Map editor UI | React (for the editor panel and controls only) |
 | Physics | Fixed-timestep loop at 60 Hz, runs entirely on the server |
 | Networking | Binary state packets at 30 Hz, player inputs at 125 Hz |
 
@@ -176,18 +176,20 @@ There are actually two canvas elements stacked on top of each other. PixiJS owns
 
 The browser composites both canvases together automatically.
 
-### Why sprites are drawn in code
+### Pre-rendered sprites
 
-There are no image files in this project. No PNGs, no downloaded sprite sheets. Every character and mob is generated from scratch at startup using Canvas 2D drawing commands (rectangles, circles, gradients, custom shapes).
+There are no image files in this project. No PNGs, no downloaded sprite sheets. Every character and mob is drawn from scratch at startup using Canvas 2D drawing commands (rectangles, circles, gradients, custom shapes), then baked into an `OffscreenCanvas` sprite sheet that lives in memory for the rest of the session.
 
-The reason is consistency across screen sizes. If you ship a 32x32 PNG and scale it up on a high-DPI display, it blurs unless you add special CSS that browsers handle differently. Generating sprites at the exact right size always gives a clean result.
+This is called pre-rendering. You do the expensive drawing work once up front, save the result as a bitmap, and then every frame you just copy pixels from that bitmap instead of re-drawing the shape from scratch. Copying pixels is extremely fast compared to re-executing all the drawing commands.
 
-Generation runs in the background one entity per frame, using `requestAnimationFrame` to yield control back to the browser between each one:
+The reason for generating them in code rather than shipping PNG files is control over resolution. If you ship a 32x32 PNG and scale it up on a high-DPI display, it blurs. Generating at the exact right size always gives a clean result on any screen.
+
+Generation runs in the background one entity per frame using `requestAnimationFrame` to yield control back to the browser between each one:
 
 ```js
 function generateNext() {
-  buildOneCharacterSheet();            // about 7 ms of work
-  requestAnimationFrame(generateNext); // yield, come back next frame
+  buildOneCharacterSheet();            // about 7 ms of canvas work
+  requestAnimationFrame(generateNext); // give the browser a frame to breathe
 }
 ```
 
@@ -330,9 +332,29 @@ requestAnimationFrame(() => requestAnimationFrame(generateNext));
 
 ---
 
+## Making it feel smooth
+
+Fixing performance problems stops the game from stuttering. Making it actually feel smooth is a separate problem. Here is what went into that.
+
+**Vsync-locked rendering.** The game loop runs with `requestAnimationFrame`, which fires in sync with your monitor. On a 144 Hz display you get 144 frames per second, each delivered exactly when the monitor is ready to show it. Earlier the loop used a `MessageChannel` hack that fired as fast as possible and was out of sync with the display, which caused visible tearing on fast movement.
+
+**Interpolation buffer.** Other players are never drawn at their latest known position. They are drawn from 34 ms in the past, always blending smoothly between two confirmed server snapshots. If a packet arrives slightly late, there is always another snapshot to fill in. Movement looks fluid even when the network has a little jitter.
+
+**Local prediction.** Your own character responds instantly to input. You do not wait for the server to confirm your movement before the sprite moves on screen. The server position arrives 50 ms later and the client quietly corrects toward it. The correction is almost always invisible because on a normal connection the positions are very close.
+
+**Object pools.** Particles, bullet trails, damage numbers, and gold floats are all pre-allocated at startup and reused. This eliminates the garbage collection pauses that used to cause occasional frame drops even when the CPU had headroom.
+
+**Sprite caching.** Drawing a character from geometry commands (arcs, rectangles, gradients) each frame is expensive. Doing it once and storing the result as a bitmap means each draw is a single fast pixel copy. The GPU handles it in fractions of a millisecond.
+
+The result on a mid-range machine: about 2.5 ms of CPU time per 6.94 ms frame at 144 Hz, which is 64% headroom. The game can handle a full 6-player match at max load without dropping a frame.
+
+---
+
 ## The map editor
 
 Instead of hardcoding map layouts I built a full in-browser map editor. It runs at `/editor2/` and lets you paint walls, place jungle camps and towers, set spawn points, and position shops, all on a canvas.
+
+The editor UI (the side panels, dropdowns, property tables, and tile palette) is built with React. The game itself uses no React at all, but the editor has a lot of interactive controls that update each other, and React made that state management much cleaner than wiring it up by hand in vanilla JS. The canvas where you actually paint the map is still plain Canvas 2D, React just handles the surrounding UI.
 
 When you are done, clicking **Deploy to Multiplayer** saves the map to the server and makes it the active map. The next match loads it automatically with no server restart needed.
 
