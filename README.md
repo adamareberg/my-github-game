@@ -1,4 +1,23 @@
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="screenshots/gameplay.png" width="420" alt="Gameplay"/><br/><sub>In-game arena combat</sub></td>
+    <td align="center"><img src="screenshots/classes.png" width="420" alt="Class select"/><br/><sub>Class selection screen</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/levelup.png" width="420" alt="Talent picker"/><br/><sub>Non-blocking talent picker on level-up</sub></td>
+    <td align="center"><img src="screenshots/editor.png" width="420" alt="Map editor"/><br/><sub>In-browser map editor</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/boss.png" width="420" alt="Boss fight"/><br/><sub>Ancient Colossus boss arena</sub></td>
+    <td align="center"><img src="screenshots/shop.png" width="420" alt="Shop"/><br/><sub>In-game upgrade shop</sub></td>
+  </tr>
+</table>
+
+> **To add screenshots:** take a screenshot in-game, save it to the `screenshots/` folder with the matching filename, and it will show up here automatically.
+
 ---
 
 ## Tech used
