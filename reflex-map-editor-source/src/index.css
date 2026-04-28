@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reflex Arena — Pro Map Editor — Old-school Windows 95/98 theme. All colors HSL. */
+@layer base {
+  :root {
+    /* Classic Win9x desktop teal + silver chrome */
+    --background: 180 25% 38%;            /* desktop teal */
+    --foreground: 0 0% 0%;                /* black text */
+
+    --card: 0 0% 75%;                     /* silver */
+    --card-foreground: 0 0% 0%;
+
+    --popover: 0 0% 82%;
+    --popover-foreground: 0 0% 0%;
+
+    --primary: 240 100% 25%;              /* navy title-bar blue */
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 240 100% 35%;
+
+    --secondary: 0 0% 75%;                /* button face */
+    --secondary-foreground: 0 0% 0%;
+
+    --muted: 0 0% 70%;
+    --muted-foreground: 0 0% 25%;
+
+    --accent: 60 100% 50%;                /* warning yellow / focus */
+    --accent-foreground: 0 0% 0%;
+
+    --success: 120 100% 25%;              /* dos green */
+    --warning: 40 100% 45%;
+    --destructive: 0 70% 42%;             /* maroon */
+    --destructive-foreground: 0 0% 100%;
+
+    /* 3D bevel borders */
+    --border: 0 0% 50%;                   /* shadow grey */
+    --border-strong: 0 0% 30%;            /* dark shadow */
+    --border-light: 0 0% 100%;            /* highlight */
+    --input: 0 0% 100%;                   /* white field */
+    --ring: 240 100% 25%;
+
+    --panel: 0 0% 75%;                    /* silver chrome */
+    --panel-2: 0 0% 82%;
+    --rail: 0 0% 75%;
+
+    --radius: 0px;                        /* no rounded corners */
+
+    /* Editor-specific tokens */
+    --grid: 0 0% 50%;
+    --grid-strong: 0 0% 30%;
+    --selection: 240 100% 25%;
+    --gradient-glow: none;
+    --shadow-panel: none;
+    --shadow-glow-cyan: none;
+    --shadow-glow-amber: none;
+
+    --sidebar-background: 0 0% 75%;
+    --sidebar-foreground: 0 0% 0%;
+    --sidebar-primary: 240 100% 25%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 82%;
+    --sidebar-accent-foreground: 0 0% 0%;
+    --sidebar-border: 0 0% 50%;
+    --sidebar-ring: 240 100% 25%;
+  }
+
+  .dark {
+    /* Editor uses the classic palette regardless of dark mode */
+    --background: 180 25% 38%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 75%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 82%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 240 100% 25%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 75%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 70%;
+    --muted-foreground: 0 0% 25%;
+    --accent: 60 100% 50%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 70% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 50%;
+    --input: 0 0% 100%;
+    --ring: 240 100% 25%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground;
+    /* Classic Windows system font stack */
+    font-family: 'Pixelated MS Sans Serif', 'MS Sans Serif', 'Microsoft Sans Serif', Tahoma, Geneva, sans-serif;
+    font-size: 12px;
+    overflow: hidden;
+    -webkit-font-smoothing: none;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Editor utility primitives — Win9x 3D bevels */
+@layer components {
+  .panel {
+    background: hsl(var(--panel));
+    color: hsl(var(--foreground));
+    /* Classic raised bevel: white top/left, dark bottom/right */
+    border-top: 2px solid hsl(var(--border-light));
+    border-left: 2px solid hsl(var(--border-light));
+    border-right: 2px solid hsl(var(--border-strong));
+    border-bottom: 2px solid hsl(var(--border-strong));
+    box-shadow: inset -1px -1px 0 0 hsl(var(--border)), inset 1px 1px 0 0 hsl(var(--panel-2));
+  }
+  .panel-2 {
+    background: hsl(var(--panel-2));
+    color: hsl(var(--foreground));
+    border-top: 2px solid hsl(var(--border-light));
+    border-left: 2px solid hsl(var(--border-light));
+    border-right: 2px solid hsl(var(--border-strong));
+    border-bottom: 2px solid hsl(var(--border-strong));
+    box-shadow: inset -1px -1px 0 0 hsl(var(--border)), inset 1px 1px 0 0 hsl(var(--panel));
+  }
+  .rail {
+    background: hsl(var(--rail));
+    border-right: 2px solid hsl(var(--border-strong));
+    box-shadow: inset -1px 0 0 0 hsl(var(--border));
+  }
+  /* Sunken/inset bevel — for fields, list views, canvas surrounds */
+  .sunken {
+    border-top: 2px solid hsl(var(--border-strong));
+    border-left: 2px solid hsl(var(--border-strong));
+    border-right: 2px solid hsl(var(--border-light));
+    border-bottom: 2px solid hsl(var(--border-light));
+    box-shadow: inset 1px 1px 0 0 hsl(var(--border)), inset -1px -1px 0 0 hsl(var(--panel));
+  }
+  .label-mono {
+    @apply uppercase tracking-wider text-[10px] text-foreground font-bold;
+  }
+  .checker-bg {
+    background-image:
+      linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%),
+      linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%),
+      linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  }
+  .scrollbar-thin {
+    scrollbar-width: auto;
+    scrollbar-color: hsl(var(--panel)) hsl(var(--muted));
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 16px; height: 16px; background: hsl(var(--muted)); }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--panel));
+    border-top: 2px solid hsl(var(--border-light));
+    border-left: 2px solid hsl(var(--border-light));
+    border-right: 2px solid hsl(var(--border-strong));
+    border-bottom: 2px solid hsl(var(--border-strong));
+  }
+  .scrollbar-thin::-webkit-scrollbar-track { background: hsl(var(--muted)); }
+
+  /* Title-bar gradient — classic blue */
+  .titlebar {
+    background: linear-gradient(90deg, hsl(240 100% 25%) 0%, hsl(210 100% 45%) 100%);
+    color: hsl(0 0% 100%);
+    font-weight: bold;
+  }
+}
+
+@layer utilities {
+  .pixelated { image-rendering: pixelated; }
+}

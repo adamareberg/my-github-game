@@ -1,0 +1,116 @@
+[
+  {
+    "name": "monsters",
+    "path": "/sprites/mobs/monsters.png",
+    "cols": 12,
+    "rows": 13
+  },
+  {
+    "name": "column1_E_0.0",
+    "path": "/sprites/tilesets/column1_E_0.0_0.png",
+    "cols": 1,
+    "rows": 1
+  },
+  {
+    "name": "spritesheet_2",
+    "path": "/sprites/spritesheet_1_1776297889097.png",
+    "cols": 1,
+    "rows": 1
+  },
+  {
+    "name": "spritesheet_1",
+    "path": "/sprites/players/spritesheet_1_1776301040117.png",
+    "cols": 1,
+    "rows": 1
+  },
+  {
+    "name": "Building1_dark_shadow",
+    "path": "/sprites/tilesets/Building1_dark_shadow.png",
+    "cols": 1,
+    "rows": 1
+  },
+  {
+    "name": "Animation4",
+    "path": "/sprites/tilesets/Animation4.png",
+    "cols": 6,
+    "rows": 3
+  },
+  {
+    "name": "Animation5",
+    "path": "/sprites/tilesets/Animation5.png",
+    "cols": 6,
+    "rows": 3
+  },
+  {
+    "name": "Animation1",
+    "path": "/sprites/tilesets/Animation1.png",
+    "cols": 6,
+    "rows": 3
+  },
+  {
+    "name": "treees",
+    "path": "/sprites/tilesets/Animation2.png",
+    "cols": 6,
+    "rows": 3
+  },
+  {
+    "name": "magic_circle_dark_shadow",
+    "path": "/sprites/tilesets/magic_circle_dark_shadow.png",
+    "cols": 1,
+    "rows": 1
+  },
+  {
+    "name": "Water_coasts",
+    "path": "/sprites/tilesets/Water_coasts.png",
+    "cols": 16,
+    "rows": 4
+  },
+  {
+    "name": "magic_circle2_dark_shadow",
+    "path": "/sprites/tilesets/magic_circle2_dark_shadow.png",
+    "cols": 1,
+    "rows": 1
+  },
+  {
+    "name": "treeeeee",
+    "path": "/sprites/tilesets/mushroom2_light_shadow1.png",
+    "cols": 1,
+    "rows": 1
+  },
+  {
+    "name": "cursed_forest_spritesheet",
+    "path": "/sprites/tilesets/cursed_forest_spritesheet.png",
+    "cols": 8,
+    "rows": 6
+  },
+  {
+    "name": "abandoned_dungeon_v3",
+    "path": "/sprites/tilesets/abandoned_dungeon_v3.png",
+    "cols": 8,
+    "rows": 6
+  },
+  {
+    "name": "Warrior_Idle",
+    "path": "/sprites/tilesets/Warrior_Idle.png",
+    "cols": 8,
+    "rows": 1
+  },
+  {
+    "name": "Warrior_Attack1",
+    "path": "/sprites/tilesets/Warrior_Attack1.png",
+    "cols": 4,
+    "rows": 1
+  },
+  {
+    "name": "Warrior_Attack2",
+    "path": "/sprites/tilesets/Warrior_Attack2.png",
+    "cols": 4,
+    "rows": 1
+  },
+  {
+    "name": "Warrior_Run",
+    "path": "/sprites/tilesets/Warrior_Run.png",
+    "cols": 6,
+    "rows": 1
+  }
+]

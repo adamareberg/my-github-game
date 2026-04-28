@@ -1,0 +1,426 @@
+{
+  "version": 5,
+  "mapW": 9600,
+  "mapH": 5400,
+  "walls": [
+    {
+      "x": 4224,
+      "y": 540,
+      "w": 1152,
+      "h": 162
+    },
+    {
+      "x": 4224,
+      "y": 4698,
+      "w": 1152,
+      "h": 162
+    },
+    {
+      "x": 1440,
+      "y": 1889.9999999999998,
+      "w": 384,
+      "h": 756.0000000000001
+    },
+    {
+      "x": 7776.000000000001,
+      "y": 1889.9999999999998,
+      "w": 384,
+      "h": 756.0000000000001
+    },
+    {
+      "x": 3456,
+      "y": 2376,
+      "w": 288,
+      "h": 648
+    },
+    {
+      "x": 5856,
+      "y": 2376,
+      "w": 288,
+      "h": 648
+    },
+    {
+      "x": 576,
+      "y": 324,
+      "w": 480,
+      "h": 324
+    },
+    {
+      "x": 8544,
+      "y": 324,
+      "w": 480,
+      "h": 324
+    },
+    {
+      "x": 576,
+      "y": 4752,
+      "w": 480,
+      "h": 324
+    },
+    {
+      "x": 8544,
+      "y": 4752,
+      "w": 480,
+      "h": 324
+    },
+    {
+      "x": 2304,
+      "y": 1080,
+      "w": 288,
+      "h": 270
+    },
+    {
+      "x": 7008,
+      "y": 1080,
+      "w": 288,
+      "h": 270
+    },
+    {
+      "x": 2304,
+      "y": 4050,
+      "w": 288,
+      "h": 270
+    },
+    {
+      "x": 7008,
+      "y": 4050,
+      "w": 288,
+      "h": 270
+    },
+    {
+      "x": 4512,
+      "y": 1620,
+      "w": 576,
+      "h": 162
+    },
+    {
+      "x": 4512,
+      "y": 3618,
+      "w": 576,
+      "h": 162
+    },
+    {
+      "x": 1920,
+      "y": 2592,
+      "w": 288,
+      "h": 216
+    },
+    {
+      "x": 7392,
+      "y": 2592,
+      "w": 288,
+      "h": 216
+    },
+    {
+      "x": 1152,
+      "y": 2700,
+      "w": 192,
+      "h": 432
+    },
+    {
+      "x": 8256,
+      "y": 2700,
+      "w": 192,
+      "h": 432
+    },
+    {
+      "x": 3840,
+      "y": 2052,
+      "w": 192,
+      "h": 216
+    },
+    {
+      "x": 5568,
+      "y": 3132,
+      "w": 192,
+      "h": 216
+    }
+  ],
+  "camps": [
+    {
+      "x": 4800,
+      "y": 2700,
+      "type": "infernal",
+      "count": 1,
+      "gold": 80,
+      "respawnTime": 50000
+    },
+    {
+      "x": 4800,
+      "y": 540,
+      "type": "dragon",
+      "count": 1,
+      "gold": 60,
+      "respawnTime": 45000
+    },
+    {
+      "x": 4800,
+      "y": 4860,
+      "type": "hydra",
+      "count": 1,
+      "gold": 70,
+      "respawnTime": 50000
+    },
+    {
+      "x": 2880,
+      "y": 1620,
+      "type": "wraith",
+      "count": 3,
+      "gold": 30,
+      "respawnTime": 20000
+    },
+    {
+      "x": 6720,
+      "y": 1620,
+      "type": "wraith",
+      "count": 3,
+      "gold": 30,
+      "respawnTime": 20000
+    },
+    {
+      "x": 2880,
+      "y": 3779.9999999999995,
+      "type": "spider",
+      "count": 4,
+      "gold": 25,
+      "respawnTime": 16000
+    },
+    {
+      "x": 6720,
+      "y": 3779.9999999999995,
+      "type": "spider",
+      "count": 4,
+      "gold": 25,
+      "respawnTime": 16000
+    },
+    {
+      "x": 1440,
+      "y": 2160,
+      "type": "golem",
+      "count": 1,
+      "gold": 35,
+      "respawnTime": 30000
+    },
+    {
+      "x": 8160,
+      "y": 2160,
+      "type": "golem",
+      "count": 1,
+      "gold": 35,
+      "respawnTime": 30000
+    },
+    {
+      "x": 1440,
+      "y": 3240,
+      "type": "vampire",
+      "count": 2,
+      "gold": 30,
+      "respawnTime": 25000
+    },
+    {
+      "x": 8160,
+      "y": 3240,
+      "type": "vampire",
+      "count": 2,
+      "gold": 30,
+      "respawnTime": 25000
+    },
+    {
+      "x": 3360,
+      "y": 810,
+      "type": "sentinel",
+      "count": 2,
+      "gold": 28,
+      "respawnTime": 22000
+    },
+    {
+      "x": 6240,
+      "y": 810,
+      "type": "sentinel",
+      "count": 2,
+      "gold": 28,
+      "respawnTime": 22000
+    },
+    {
+      "x": 3360,
+      "y": 4590,
+      "type": "banshee",
+      "count": 2,
+      "gold": 26,
+      "respawnTime": 22000
+    },
+    {
+      "x": 6240,
+      "y": 4590,
+      "type": "banshee",
+      "count": 2,
+      "gold": 26,
+      "respawnTime": 22000
+    },
+    {
+      "x": 960,
+      "y": 1350,
+      "type": "berserker",
+      "count": 1,
+      "gold": 40,
+      "respawnTime": 28000
+    },
+    {
+      "x": 8640,
+      "y": 1350,
+      "type": "berserker",
+      "count": 1,
+      "gold": 40,
+      "respawnTime": 28000
+    },
+    {
+      "x": 960,
+      "y": 4050,
+      "type": "minotaur",
+      "count": 1,
+      "gold": 55,
+      "respawnTime": 35000
+    },
+    {
+      "x": 8640,
+      "y": 4050,
+      "type": "minotaur",
+      "count": 1,
+      "gold": 55,
+      "respawnTime": 35000
+    },
+    {
+      "x": 2400,
+      "y": 2700,
+      "type": "shaman",
+      "count": 2,
+      "gold": 28,
+      "respawnTime": 25000
+    },
+    {
+      "x": 7200,
+      "y": 2700,
+      "type": "shaman",
+      "count": 2,
+      "gold": 28,
+      "respawnTime": 25000
+    },
+    {
+      "x": 3840,
+      "y": 1350,
+      "type": "phoenix",
+      "count": 1,
+      "gold": 50,
+      "respawnTime": 40000
+    },
+    {
+      "x": 5760,
+      "y": 4050,
+      "type": "phoenix",
+      "count": 1,
+      "gold": 50,
+      "respawnTime": 40000
+    },
+    {
+      "x": 1920,
+      "y": 810,
+      "type": "lich",
+      "count": 1,
+      "gold": 55,
+      "respawnTime": 38000
+    },
+    {
+      "x": 7680,
+      "y": 4590,
+      "type": "lich",
+      "count": 1,
+      "gold": 55,
+      "respawnTime": 38000
+    }
+  ],
+  "spawns": [
+    {
+      "x": 768,
+      "y": 1889.9999999999998,
+      "team": 1
+    },
+    {
+      "x": 768,
+      "y": 2700,
+      "team": 1
+    },
+    {
+      "x": 768,
+      "y": 3510,
+      "team": 1
+    },
+    {
+      "x": 8832,
+      "y": 1889.9999999999998,
+      "team": 2
+    },
+    {
+      "x": 8832,
+      "y": 2700,
+      "team": 2
+    },
+    {
+      "x": 8832,
+      "y": 3510,
+      "team": 2
+    }
+  ],
+  "towers": [
+    {
+      "x": 480,
+      "y": 2700,
+      "team": 1,
+      "hp": 500,
+      "maxHp": 500,
+      "radius": 30,
+      "atkRange": 350,
+      "atkCd": 1000,
+      "dmg": 25
+    },
+    {
+      "x": 9120,
+      "y": 2700,
+      "team": 2,
+      "hp": 500,
+      "maxHp": 500,
+      "radius": 30,
+      "atkRange": 350,
+      "atkCd": 1000,
+      "dmg": 25
+    }
+  ],
+  "shopZone": {
+    "x": 4512,
+    "y": 2538,
+    "w": 576,
+    "h": 324
+  },
+  "tileLayers": [],
+  "spriteSheets": [
+    {
+      "name": "spritesheet_1",
+      "path": "/sprites/players/spritesheet_1_1776301040117.png",
+      "cols": 1,
+      "rows": 1
+    },
+    {
+      "name": "spritesheet_2",
+      "path": "/sprites/spritesheet_1_1776297889097.png",
+      "cols": 1,
+      "rows": 1
+    },
+    {
+      "name": "spritesheet_1",
+      "path": "/sprites/spritesheet_1_1776297041681.png",
+      "cols": 1,
+      "rows": 1
+    }
+  ],
+  "name": "saveing",
+  "savedAt": "2026-04-16T16:34:00.093Z"
+}

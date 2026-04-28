@@ -1,0 +1,45 @@
+{
+  "mob_lich": {
+    "sheetName": "magic_circle2_dark_shadow",
+    "startFrame": 1,
+    "endFrame": 7,
+    "fps": 8
+  },
+  "mob_berserker": {
+    "sheetName": "Animation4",
+    "startFrame": 0,
+    "endFrame": 17,
+    "fps": 8
+  },
+  "class_assassin": {
+    "sheetName": "Warrior_Idle",
+    "startFrame": 1,
+    "endFrame": 7,
+    "fps": 8,
+    "states": {
+      "walk": {
+        "sheetName": "Warrior_Run",
+        "startFrame": 1,
+        "endFrame": 4,
+        "fps": 8
+      },
+      "attack": {
+        "sheetName": "Warrior_Attack1",
+        "startFrame": 1,
+        "endFrame": 4,
+        "fps": 8
+      },
+      "idle": {
+        "startFrame": 1,
+        "endFrame": 7,
+        "fps": 8
+      },
+      "special": {
+        "sheetName": "Warrior_Attack2",
+        "startFrame": 1,
+        "endFrame": 4,
+        "fps": 8
+      }
+    }
+  }
+}

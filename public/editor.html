@@ -1,0 +1,2900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reflex Arena — Pro Map Editor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --cyan:#00f5ff;--magenta:#ff00aa;--green:#00ff88;--amber:#ffaa00;--red:#ff3355;--purple:#cc44ff;
+  --bg:#050810;--panel:#0a0f1c;--panel2:#0d1328;--border:#152040;--border2:#1e3060;
+  --text:#c0d8f0;--dim:#3a5070;--glow-cyan:0 0 12px rgba(0,245,255,.25);
+  --glow-amber:0 0 12px rgba(255,170,0,.25);--glow-green:0 0 12px rgba(0,255,136,.25);
+  --radius:4px;--transition:all .15s ease;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:'JetBrains Mono','Share Tech Mono',monospace;color:var(--text);user-select:none}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--dim)}
+
+/* ── LAYOUT ── */
+#app{display:flex;width:100%;height:100%}
+#leftPanel{width:56px;min-width:56px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px;z-index:20}
+#sidebar{width:280px;min-width:280px;background:var(--panel2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;z-index:15}
+#sidebar.collapsed{width:0;min-width:0;overflow:hidden;border:none}
+#canvasWrap{flex:1;position:relative;overflow:hidden}
+canvas{display:block}
+#bottomBar{position:absolute;bottom:0;left:0;right:0;height:32px;background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:16px;font-size:10px;color:var(--dim);z-index:10}
+
+/* ── TOOLBAR (LEFT RAIL) ── */
+.tb-divider{width:32px;height:1px;background:var(--border);margin:4px 0}
+.tb-btn{width:42px;height:42px;border:1px solid transparent;background:transparent;color:var(--dim);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  font-size:14px;transition:var(--transition);border-radius:var(--radius);position:relative}
+.tb-btn:hover{background:rgba(255,255,255,.04);color:var(--text);border-color:var(--border2)}
+.tb-btn.active{background:rgba(0,245,255,.06);color:var(--cyan);border-color:rgba(0,245,255,.3);box-shadow:var(--glow-cyan)}
+.tb-btn .lbl{font-size:6px;font-family:'Orbitron',monospace;letter-spacing:.5px;font-weight:700;text-transform:uppercase;line-height:1}
+.tb-btn[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;left:52px;top:50%;transform:translateY(-50%);
+  background:var(--panel);border:1px solid var(--border2);color:var(--text);padding:4px 8px;font-size:9px;
+  font-family:'Orbitron',monospace;letter-spacing:1px;white-space:nowrap;z-index:100;pointer-events:none}
+
+/* ── SIDEBAR PANELS ── */
+.panel-header{padding:10px 14px 8px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.panel-header h2{font-family:'Orbitron',monospace;font-size:10px;font-weight:900;letter-spacing:2px;color:var(--amber)}
+.panel-header .badge{font-size:8px;background:rgba(255,170,0,.12);color:var(--amber);padding:1px 6px;border-radius:2px;letter-spacing:1px}
+.panel-section{padding:10px 14px;border-bottom:1px solid var(--border)}
+.panel-section h3{font-family:'Orbitron',monospace;font-size:9px;color:var(--cyan);letter-spacing:1.5px;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.panel-section h3 .dim{color:var(--dim);font-size:8px}
+
+/* ── PROP ROWS ── */
+.prop-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:10px}
+.prop-row label{color:var(--dim);min-width:48px;font-size:8px;letter-spacing:1px;font-family:'Orbitron',monospace}
+.prop-row input,.prop-row select{background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:4px 6px;font-size:10px;font-family:'JetBrains Mono',monospace;flex:1;border-radius:var(--radius);transition:var(--transition)}
+.prop-row input:focus,.prop-row select:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 8px rgba(0,245,255,.1)}
+.prop-row input[type=number]{width:60px;flex:none}
+.prop-row select{cursor:pointer}
+.prop-row input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--border);border:none;border-radius:2px;padding:0;flex:1}
+.prop-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--cyan);cursor:pointer}
+.prop-row .val{color:var(--cyan);font-size:9px;min-width:28px;text-align:right}
+
+/* ── BUTTONS ── */
+.btn{font-family:'Orbitron',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:6px 10px;
+  border:1px solid;cursor:pointer;transition:var(--transition);background:transparent;border-radius:var(--radius);white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-sm{padding:3px 8px;font-size:7px}
+.btn-cyan{color:var(--cyan);border-color:var(--cyan)}.btn-cyan:hover{background:var(--cyan);color:var(--bg)}
+.btn-green{color:var(--green);border-color:var(--green)}.btn-green:hover{background:var(--green);color:var(--bg)}
+.btn-amber{color:var(--amber);border-color:var(--amber)}.btn-amber:hover{background:var(--amber);color:var(--bg)}
+.btn-red{color:var(--red);border-color:var(--red)}.btn-red:hover{background:var(--red);color:var(--bg)}
+.btn-purple{color:var(--purple);border-color:var(--purple)}.btn-purple:hover{background:var(--purple);color:var(--bg)}
+.btn-dim{color:var(--dim);border-color:var(--dim)}.btn-dim:hover{background:var(--dim);color:var(--bg)}
+.btn-full{width:100%;text-align:center}
+
+/* ── MOB GRID ── */
+.mob-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+.mob-btn{display:flex;flex-direction:column;align-items:center;padding:4px 2px;border:1px solid var(--border);
+  background:transparent;cursor:pointer;transition:var(--transition);border-radius:var(--radius);color:var(--text)}
+.mob-btn:hover{border-color:var(--text);background:rgba(255,255,255,.03)}
+.mob-btn.active{border-color:var(--amber);background:rgba(255,170,0,.06);box-shadow:var(--glow-amber)}
+.mob-btn .mob-icon{font-size:14px}
+.mob-btn .mob-name{font-size:6px;font-family:'Orbitron',monospace;letter-spacing:.5px;margin-top:1px}
+
+/* ── SPRITESHEET PANEL ── */
+.sprite-card{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;overflow:hidden;background:rgba(0,0,0,.2)}
+.sprite-card-header{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;cursor:pointer;font-size:9px}
+.sprite-card-header:hover{background:rgba(255,255,255,.02)}
+.sprite-card-header .name{color:var(--text);font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sprite-card-header .info{color:var(--dim);font-size:8px;margin-left:6px}
+.sprite-card-body{padding:8px;border-top:1px solid var(--border);display:none}
+.sprite-card-body.open{display:block}
+.sprite-preview{max-width:100%;border:1px solid var(--border);border-radius:2px;background:repeating-conic-gradient(#1a1a2e 0% 25%, #12121e 0% 50%) 0 0 / 10px 10px;image-rendering:pixelated;cursor:crosshair}
+.sprite-frames{display:flex;gap:3px;flex-wrap:wrap;margin-top:6px}
+.sprite-frame{border:1px solid var(--border);border-radius:2px;cursor:pointer;image-rendering:pixelated;background:repeating-conic-gradient(#1a1a2e 0% 25%, #12121e 0% 50%) 0 0 / 6px 6px}
+.sprite-frame:hover{border-color:var(--cyan)}
+.sprite-frame.selected{border-color:var(--amber);box-shadow:var(--glow-amber)}
+.del-btn{color:var(--red);cursor:pointer;font-size:10px;background:none;border:none;padding:2px 4px;transition:var(--transition)}
+.del-btn:hover{color:#ff6677}
+
+/* ── TILE PALETTE ── */
+#tilePaletteWrap{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;max-height:220px;overflow-y:auto}
+.tp-sheet-label{font-family:'Orbitron',monospace;font-size:7px;letter-spacing:1px;color:var(--amber);padding:4px 7px 3px;border-bottom:1px solid var(--border);background:rgba(255,170,0,.04);position:sticky;top:0;z-index:1}
+#tilePalette{display:grid;grid-template-columns:repeat(auto-fill,52px);gap:3px;padding:5px}
+.tile-cell{width:52px;height:52px;border:1px solid rgba(255,255,255,.07);border-radius:3px;cursor:pointer;image-rendering:pixelated;
+  background:repeating-conic-gradient(#1a1a2e 0% 25%,#12121e 0% 50%) 0 0/8px 8px;position:relative;transition:border-color .1s,box-shadow .1s}
+.tile-cell:hover{border-color:rgba(0,245,255,.5);box-shadow:0 0 6px rgba(0,245,255,.15)}
+.tile-cell.selected{border-color:var(--cyan);box-shadow:0 0 0 1px rgba(0,245,255,.25) inset,0 0 10px rgba(0,245,255,.2)}
+.tile-cell canvas{width:100%;height:100%;image-rendering:pixelated}
+
+/* ── LAYERS ── */
+.layer-row{display:flex;align-items:center;gap:3px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:3px;font-size:9px;cursor:pointer;transition:var(--transition)}
+.layer-row:hover{background:rgba(255,255,255,.02)}
+.layer-row.active{border-color:var(--cyan);background:rgba(0,245,255,.04)}
+.layer-row .eye{cursor:pointer;font-size:12px;opacity:.5;transition:var(--transition)}
+.layer-row .eye.visible{opacity:1}
+.layer-row .layer-name{flex:1;color:var(--text);font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layer-row .layer-name input{background:transparent;border:none;border-bottom:1px solid var(--cyan);color:var(--cyan);font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1px;width:100%;outline:none;padding:0}
+.layer-row .layer-count{color:var(--dim);font-size:8px;white-space:nowrap}
+.layer-row .layer-anim{color:var(--cyan);font-size:7px}
+.layer-move{background:none;border:none;color:var(--dim);cursor:pointer;padding:0 2px;font-size:10px;line-height:1}
+.layer-move:hover{color:var(--text)}
+
+/* ── TOAST ── */
+#toastArea{position:fixed;bottom:48px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;z-index:9999;pointer-events:none}
+.toast{background:var(--panel);border:1px solid var(--border2);color:var(--text);padding:6px 14px;font-size:9px;font-family:'Orbitron',monospace;letter-spacing:1px;border-radius:4px;
+  animation:toastIn .15s ease,toastOut .3s ease 2s forwards;white-space:nowrap;pointer-events:none}
+.toast.ok{border-color:var(--green);color:var(--green)}
+.toast.warn{border-color:var(--amber);color:var(--amber)}
+.toast.err{border-color:var(--red);color:var(--red)}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;pointer-events:none}}
+
+/* ── BRUSH SIZE ── */
+.brush-btn{background:transparent;border:1px solid var(--border);color:var(--dim);cursor:pointer;padding:2px 5px;font-size:8px;border-radius:2px;font-family:'JetBrains Mono',monospace;transition:var(--transition)}
+.brush-btn.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,245,255,.08)}
+
+/* ── ANIMATION PREVIEW ── */
+#animPreview{width:100%;height:116px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;position:relative;overflow:hidden}
+#animPreviewCanvas{width:100%;height:100%;image-rendering:pixelated}
+.anim-controls{display:flex;align-items:center;gap:4px;padding:5px 6px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);margin-bottom:6px}
+.anim-ctrl-btn{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--text);cursor:pointer;padding:3px 9px;font-size:11px;border-radius:var(--radius);transition:var(--transition);line-height:1}
+.anim-ctrl-btn:hover{border-color:var(--cyan);color:var(--cyan);background:rgba(0,245,255,.06)}
+/* ── ENTITY ANIM STATE PILLS ── */
+#animEntityBar{margin-top:2px}
+.anim-entity-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.anim-entity-name{font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1px;color:var(--amber)}
+.anim-entity-info{font-size:8px;color:var(--dim);font-family:'JetBrains Mono',monospace}
+.anim-state-pills{display:flex;gap:3px;flex-wrap:wrap}
+.anim-state-pill{font-family:'Orbitron',monospace;font-size:7px;letter-spacing:.5px;padding:3px 9px;border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--dim);cursor:pointer;transition:all .12s;white-space:nowrap}
+.anim-state-pill:hover{border-color:var(--cyan);color:var(--text)}
+.anim-state-pill.active{border-color:var(--cyan);background:rgba(0,245,255,.12);color:var(--cyan)}
+/* ── ASSIGN CARDS ── */
+.assign-section-title{font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1.5px;padding:5px 0 4px;margin-bottom:2px;display:flex;align-items:center;gap:6px}
+.assign-card{border:1px solid var(--border);border-radius:4px;margin-bottom:4px;overflow:hidden;background:rgba(0,0,0,.15);transition:border-color .15s}
+.assign-card:hover{border-color:var(--border2)}
+.assign-card-head{display:flex;align-items:center;gap:5px;padding:5px 7px;cursor:pointer;user-select:none}
+.assign-card-head:hover{background:rgba(255,255,255,.02)}
+.ac-name{font-family:'Orbitron',monospace;font-size:8px;letter-spacing:.7px;color:var(--text);flex:1}
+.ac-sheet-badge{font-size:7px;color:var(--dim);background:rgba(255,255,255,.04);border:1px solid var(--border);padding:1px 5px;border-radius:8px;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac-sheet-badge.has-sheet{color:var(--cyan);border-color:rgba(0,245,255,.2)}
+.ac-expand{color:var(--dim);font-size:9px;transition:transform .15s;line-height:1}
+.assign-card.open .ac-expand{transform:rotate(90deg)}
+.assign-card-body{padding:7px 8px;border-top:1px solid var(--border);background:rgba(0,0,0,.1);display:none}
+.assign-card.open .assign-card-body{display:block}
+.ac-sheet-sel{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;font-size:9px;border-radius:3px;margin-bottom:5px;cursor:pointer;font-family:'JetBrains Mono',monospace}
+.ac-sheet-sel:focus{outline:none;border-color:var(--cyan)}
+.ac-row{display:flex;align-items:center;gap:3px;margin-bottom:3px;font-size:8px}
+.ac-row label{font-family:'Orbitron',monospace;font-size:7px;color:var(--dim);letter-spacing:.5px;min-width:32px}
+.ac-num{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 4px;font-size:8px;border-radius:2px;text-align:center;width:36px;font-family:'JetBrains Mono',monospace}
+.ac-num:focus{outline:none;border-color:var(--cyan)}
+.ac-sep{color:var(--dim)}
+.ac-fps{color:var(--cyan)}
+/* State table */
+.states-toggle-row{display:flex;align-items:center;gap:5px;margin-bottom:5px;font-size:8px;color:var(--dim);border-top:1px solid var(--border);padding-top:5px;margin-top:4px}
+.states-toggle-row input{accent-color:var(--cyan);cursor:pointer}
+.state-rows{background:rgba(0,245,255,.02);border:1px solid rgba(0,245,255,.1);border-radius:3px;padding:4px 5px;margin-top:3px}
+.state-row{display:grid;grid-template-columns:42px 1fr 30px 30px 28px;align-items:center;gap:2px;padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.04)}
+.state-row:last-child{border-bottom:none}
+.state-tag{font-family:'Orbitron',monospace;font-size:7px;letter-spacing:.5px;padding:2px 5px;border-radius:8px;text-align:center}
+.state-tag.idle{color:#aaddff;background:rgba(170,221,255,.08);border:1px solid rgba(170,221,255,.2)}
+.state-tag.walk{color:#00ff88;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.15)}
+.state-tag.attack{color:#ff3355;background:rgba(255,51,85,.06);border:1px solid rgba(255,51,85,.2)}
+.state-tag.special{color:#cc44ff;background:rgba(204,68,255,.06);border:1px solid rgba(204,68,255,.2)}
+.state-tag.dead{color:#888;background:rgba(136,136,136,.06);border:1px solid rgba(136,136,136,.15)}
+.state-sheet-sel{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:1px 3px;font-size:7px;border-radius:2px;width:100%;cursor:pointer}
+.state-sheet-sel:focus{outline:none;border-color:var(--cyan)}
+/* Layer anim card */
+.layer-anim-card{background:rgba(0,245,255,.02);border:1px solid rgba(0,245,255,.15);border-radius:4px;padding:8px;margin-top:6px}
+.lac-title{font-family:'Orbitron',monospace;font-size:8px;color:var(--cyan);letter-spacing:1px;margin-bottom:7px;display:flex;align-items:center;gap:5px}
+.lac-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:9px}
+.lac-row label{font-family:'Orbitron',monospace;font-size:7px;color:var(--dim);letter-spacing:.5px;min-width:52px}
+.lac-sub{background:rgba(255,170,0,.03);border:1px solid rgba(255,170,0,.15);border-radius:3px;padding:6px;margin-top:5px}
+.lac-sub-title{font-family:'Orbitron',monospace;font-size:7px;color:var(--amber);letter-spacing:.8px;margin-bottom:5px}
+
+/* ── CANVAS OVERLAYS ── */
+#editorHUD{position:absolute;top:8px;left:8px;font-size:10px;color:var(--dim);letter-spacing:1px;pointer-events:none;z-index:5}
+#editorHUD div{margin-bottom:2px}
+.coord{font-family:'Orbitron',monospace;color:var(--cyan)}
+#selInfo{position:absolute;bottom:40px;left:8px;font-size:9px;color:var(--amber);letter-spacing:1px;pointer-events:none;
+  z-index:5;background:rgba(5,8,16,.9);padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius);display:none}
+#editorMinimap{position:absolute;bottom:40px;right:8px;border:1px solid var(--border);background:rgba(5,8,16,.9);z-index:5;border-radius:var(--radius)}
+#perfStats{position:absolute;top:8px;right:8px;font-size:9px;color:var(--dim);z-index:5;pointer-events:none;text-align:right;font-family:'JetBrains Mono',monospace}
+#perfStats .warn{color:var(--amber)}
+#perfStats .bad{color:var(--red)}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--panel2);border:1px solid var(--border2);padding:20px;max-width:700px;width:92vw;max-height:85vh;overflow:auto;border-radius:6px}
+.modal h2{font-family:'Orbitron',monospace;font-size:13px;color:var(--cyan);letter-spacing:2px;margin-bottom:12px}
+.modal textarea{width:100%;height:200px;background:var(--bg);border:1px solid var(--border);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:11px;padding:8px;resize:vertical;border-radius:var(--radius)}
+.modal textarea:focus{outline:none;border-color:var(--cyan)}
+.modal-actions{display:flex;gap:8px;margin-top:12px}
+.validation-msg{padding:5px 10px;margin-bottom:3px;font-size:8px;border:1px solid;letter-spacing:1px;font-family:'Orbitron',monospace;border-radius:var(--radius)}
+.validation-msg.error{color:var(--red);border-color:var(--red);background:rgba(255,51,85,.06)}
+.validation-msg.warn{color:var(--amber);border-color:var(--amber);background:rgba(255,170,0,.06)}
+.validation-msg.ok{color:var(--green);border-color:var(--green);background:rgba(0,255,136,.06)}
+
+/* ── SPRITESHEET IMPORT MODAL ── */
+.ss-import-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.ss-import-grid .preview-area{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:8px;text-align:center;min-height:160px;display:flex;align-items:center;justify-content:center}
+.ss-import-grid .preview-area img{max-width:100%;max-height:200px;image-rendering:pixelated}
+.ss-import-grid .config-area{display:flex;flex-direction:column;gap:6px}
+.drop-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:24px;text-align:center;cursor:pointer;transition:var(--transition);color:var(--dim);font-size:10px}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--cyan);color:var(--cyan);background:rgba(0,245,255,.03)}
+
+/* ── TOGGLE ── */
+.toggle-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:9px;color:var(--text)}
+.toggle-row input[type=checkbox]{accent-color:var(--cyan);width:13px;height:13px;cursor:pointer}
+
+/* ── MAP MANAGER ── */
+.slot-card{border:1px solid var(--border);border-radius:var(--radius);padding:8px;margin-bottom:6px;background:rgba(0,0,0,.2);transition:border-color .15s,background .15s}
+.slot-card.dragover{border-color:var(--cyan);background:rgba(0,245,255,.06)}
+.slot-card.slot-active{border-color:#00ff88;background:rgba(0,255,136,.04)}
+.mm-map-card{border:1px solid var(--border);border-radius:var(--radius);padding:8px;margin-bottom:6px;background:rgba(0,0,0,.2);cursor:grab;transition:border-color .15s,opacity .15s}
+.mm-map-card:hover{border-color:var(--cyan);background:rgba(0,245,255,.03)}
+.mm-map-card:active{cursor:grabbing;opacity:.7}
+
+/* ── TAB BAR ── */
+.tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--panel)}
+.tab-btn{flex:1;padding:8px 4px;text-align:center;font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1px;
+  color:var(--dim);cursor:pointer;border:none;background:none;transition:var(--transition);border-bottom:2px solid transparent}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--cyan);border-bottom-color:var(--cyan);background:rgba(0,245,255,.03)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* ── KEYBOARD HINTS ── */
+.kbd{display:inline-block;padding:1px 4px;background:var(--bg);border:1px solid var(--border);border-radius:2px;font-size:8px;color:var(--dim);font-family:'JetBrains Mono',monospace}
+
+/* ── SPRITE BROWSER ── */
+#spriteBrowserGrid{display:grid;grid-template-columns:repeat(auto-fill,80px);gap:6px;max-height:420px;overflow-y:auto;padding:4px}
+.sb-card{border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:var(--transition);overflow:hidden;background:rgba(0,0,0,.3);position:relative}
+.sb-card:hover{border-color:var(--cyan);background:rgba(0,245,255,.04)}
+.sb-card.selected{border-color:var(--amber);box-shadow:var(--glow-amber)}
+.sb-card img{width:80px;height:60px;object-fit:contain;display:block;image-rendering:pixelated;background:repeating-conic-gradient(#1a1a2e 0% 25%,#12121e 0% 50%) 0 0/8px 8px}
+.sb-card .sb-name{font-size:7px;font-family:'Orbitron',monospace;letter-spacing:.3px;color:var(--dim);padding:2px 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.sb-card.selected .sb-name{color:var(--amber)}
+#sbConfigArea{border-top:1px solid var(--border);padding:10px;display:none}
+#sbConfigArea.visible{display:block}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ═══ LEFT TOOLBAR ═══ -->
+  <div id="leftPanel">
+    <div style="font-family:Orbitron;font-size:7px;color:var(--cyan);letter-spacing:2px;margin-bottom:6px;font-weight:900">RA</div>
+    <button class="tb-btn active" id="tb-select" onclick="setTool('select')" data-tooltip="SELECT (V)"><span>🖱️</span><span class="lbl">SEL</span></button>
+    <button class="tb-btn" id="tb-wall" onclick="setTool('wall')" data-tooltip="WALL (W)"><span>🧱</span><span class="lbl">WALL</span></button>
+    <button class="tb-btn" id="tb-tile" onclick="setTool('tile')" data-tooltip="TILE PAINT (T)"><span>🎨</span><span class="lbl">TILE</span></button>
+    <button class="tb-btn" id="tb-camp" onclick="setTool('camp')" data-tooltip="MOB CAMP (C)"><span>🐺</span><span class="lbl">CAMP</span></button>
+    <button class="tb-btn" id="tb-spawn" onclick="setTool('spawn')" data-tooltip="SPAWN (S)"><span>🏁</span><span class="lbl">SPWN</span></button>
+    <button class="tb-btn" id="tb-shop" onclick="setTool('shop')" data-tooltip="SHOP ZONE"><span>🏪</span><span class="lbl">SHOP</span></button>
+    <button class="tb-btn" id="tb-tower" onclick="setTool('tower')" data-tooltip="TOWER"><span>🏰</span><span class="lbl">TOWR</span></button>
+    <div class="tb-divider"></div>
+    <button class="tb-btn" id="tb-erase" onclick="setTool('erase')" data-tooltip="ERASE (E)"><span>🗑️</span><span class="lbl">DEL</span></button>
+    <div style="flex:1"></div>
+    <button class="tb-btn" onclick="toggleSidebar()" data-tooltip="TOGGLE PANEL"><span>◧</span><span class="lbl">PANL</span></button>
+  </div>
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <div id="sidebar">
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('objects')">OBJECTS</button>
+      <button class="tab-btn" onclick="switchTab('sprites')">SPRITES</button>
+      <button class="tab-btn" onclick="switchTab('layers')">LAYERS</button>
+      <button class="tab-btn" onclick="switchTab('settings')">SETTINGS</button>
+    </div>
+
+    <!-- ═══ OBJECTS TAB ═══ -->
+    <div class="tab-content active" id="tabObjects">
+      <div class="panel-section">
+        <h3>⚙ PROPERTIES</h3>
+        <div id="propContent"><div style="font-size:9px;color:var(--dim)">Select an object or place a new one</div></div>
+      </div>
+      <div class="panel-section">
+        <h3>🐾 MOB TYPE <span class="dim">(when placing camps)</span></h3>
+        <div class="mob-grid" id="campTypeGrid"></div>
+      </div>
+      <div class="panel-section">
+        <h3>📁 ACTIONS</h3>
+        <div id="validationArea"></div>
+        <button class="btn btn-cyan btn-full" onclick="testMap()" style="margin-bottom:4px">▶ TEST PLAY</button>
+        <div style="display:flex;gap:4px;margin-bottom:4px">
+          <button class="btn btn-green" style="flex:1" onclick="exportMap()">📤 EXPORT</button>
+          <button class="btn btn-amber" style="flex:1" onclick="showImport()">📥 IMPORT</button>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:4px">
+          <button class="btn btn-cyan" style="flex:1" onclick="saveToFile()">💾 SAVE</button>
+          <button class="btn btn-purple" style="flex:1" onclick="loadFromFile()">📂 LOAD</button>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:4px">
+          <button class="btn btn-green" style="flex:1" onclick="saveToServer()">☁ SERVER SAVE</button>
+          <button class="btn btn-purple" style="flex:1" onclick="showMapManager()">🗂 MAP MANAGER</button>
+        </div>
+        <div id="serverStatus" style="font-size:8px;color:var(--dim);margin-bottom:4px"></div>
+        <button class="btn btn-red btn-full btn-sm" onclick="clearMap()">🗑 CLEAR ALL</button>
+        <input type="file" id="fileInput" accept=".json" style="display:none" onchange="handleFileLoad(event)">
+      </div>
+      <div class="panel-section" style="flex:1">
+        <h3>📊 MAP STATS</h3>
+        <div id="mapStats" style="font-size:9px;color:var(--dim);line-height:1.7"></div>
+      </div>
+    </div>
+
+    <!-- ═══ SPRITES TAB ═══ -->
+    <div class="tab-content" id="tabSprites">
+      <div class="panel-section">
+        <h3>🖼️ SPRITE SHEETS</h3>
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <button class="btn btn-purple" style="flex:1" onclick="showSpriteImportModal()">+ UPLOAD NEW</button>
+          <button class="btn btn-cyan" style="flex:1" onclick="showSpriteBrowser()">☁ LOAD SAVED</button>
+        </div>
+        <div id="spriteSheetList"></div>
+      </div>
+      <div class="panel-section">
+        <h3>🎯 SPRITE ASSIGNMENTS <span class="dim">— global, applies to all maps</span></h3>
+        <div style="display:flex;gap:4px;margin-bottom:6px">
+          <button class="btn btn-green btn-sm btn-full" onclick="saveGlobalAssignments()">💾 SAVE ASSIGNMENTS</button>
+        </div>
+        <div id="assignSaveStatus" style="font-size:8px;color:var(--dim);margin-bottom:4px;min-height:12px"></div>
+        <div id="spriteAssignArea">
+          <div style="font-size:8px;color:var(--dim);margin-bottom:8px;line-height:1.5">Assign once — all maps inherit these automatically. Click any row to expand.</div>
+          <div class="assign-section-title" style="color:var(--amber)"><span>🐾</span> MOBS</div>
+          <div id="mobSpriteAssign"></div>
+          <div class="assign-section-title" style="color:var(--cyan);margin-top:4px"><span>⚔️</span> CLASSES</div>
+          <div id="classSpriteAssign"></div>
+          <div class="assign-section-title" style="color:var(--green);margin-top:4px"><span>✨</span> VFX</div>
+          <div id="vfxSpriteAssign"></div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <h3>🎨 TILE PALETTE <span class="dim">— click to select</span></h3>
+        <div id="tilePaletteWrap"><div id="tilePalette"></div></div>
+        <div style="margin-top:5px;font-size:8px;color:var(--dim)"><kbd class="kbd">T</kbd> tile tool · <kbd class="kbd">E</kbd> erase · <kbd class="kbd">Alt+Click</kbd> eyedropper · brush bar at bottom</div>
+      </div>
+      <div class="panel-section">
+        <h3>🎬 ANIMATION PREVIEW</h3>
+        <div id="animPreview"><canvas id="animPreviewCanvas"></canvas></div>
+        <div class="anim-controls">
+          <button class="anim-ctrl-btn" onclick="animToggle()" title="Play/Pause">⏯</button>
+          <button class="anim-ctrl-btn" onclick="animPrev()" title="Prev frame">◀</button>
+          <button class="anim-ctrl-btn" onclick="animNext()" title="Next frame">▶</button>
+          <span style="color:var(--dim);font-size:8px;margin-left:2px">FPS</span>
+          <input type="range" min="1" max="30" value="8" oninput="animFps=+this.value;document.getElementById('fpsVal').textContent=this.value" style="-webkit-appearance:none;appearance:none;height:3px;background:var(--border);border:none;border-radius:2px;flex:1;padding:0;cursor:pointer">
+          <span class="val" id="fpsVal" style="min-width:20px;text-align:right">8</span>
+          <button class="anim-ctrl-btn" onclick="clearEntityPreview()" title="Back to raw sheet view" style="color:var(--dim);font-size:9px;padding:3px 6px">✕</button>
+        </div>
+        <div id="animEntityBar" style="display:none">
+          <div class="anim-entity-header">
+            <span class="anim-entity-name" id="animEntityLabel">—</span>
+            <span class="anim-entity-info" id="animEntityFrameInfo"></span>
+          </div>
+          <div class="anim-state-pills" id="animEntityStates"></div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <h3>🔊 SOUNDS</h3>
+        <button class="btn btn-purple btn-full btn-sm" onclick="importSound()" style="margin-bottom:4px">+ IMPORT SOUND</button>
+        <input type="file" id="soundInput" accept="audio/*" style="display:none" onchange="handleSoundImport(event)">
+        <div id="soundList" style="font-size:9px;color:var(--dim)">No sounds imported</div>
+      </div>
+    </div>
+
+    <!-- ═══ LAYERS TAB ═══ -->
+    <div class="tab-content" id="tabLayers">
+      <div class="panel-section">
+        <h3>📑 LAYERS</h3>
+        <button class="btn btn-cyan btn-full btn-sm" onclick="addLayer()" style="margin-bottom:6px">+ NEW TILE LAYER</button>
+        <div id="layerList"></div>
+      </div>
+      <div class="panel-section">
+        <h3>🔧 LAYER PROPS</h3>
+        <div id="layerProps"><div style="font-size:9px;color:var(--dim)">Select a layer to edit</div></div>
+      </div>
+    </div>
+
+    <!-- ═══ SETTINGS TAB ═══ -->
+    <div class="tab-content" id="tabSettings">
+      <div class="panel-section">
+        <h3>📐 MAP SIZE</h3>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+          <input type="number" id="mapW" value="9600" min="1600" max="19200" step="100" style="width:70px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px;font-size:10px;font-family:'JetBrains Mono',monospace;border-radius:var(--radius)">
+          <span style="color:var(--dim);font-size:10px">×</span>
+          <input type="number" id="mapH" value="5400" min="900" max="10800" step="100" style="width:70px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px;font-size:10px;font-family:'JetBrains Mono',monospace;border-radius:var(--radius)">
+          <button class="btn btn-cyan btn-sm" onclick="applyMapSize()">SET</button>
+        </div>
+      </div>
+      <div class="panel-section">
+        <h3>👁 VIEW OPTIONS</h3>
+        <div class="toggle-row"><input type="checkbox" id="chkCollision" checked onchange="showCollision=this.checked">Show unwalkable zones</div>
+        <div class="toggle-row"><input type="checkbox" id="chkTowerRange" checked onchange="showTowerRange=this.checked">Show tower range</div>
+        <div class="toggle-row"><input type="checkbox" id="chkGrid" checked onchange="showGrid=this.checked">Grid overlay</div>
+        <div class="toggle-row"><input type="checkbox" id="chkSnap" checked onchange="snapEnabled=this.checked">Snap to grid</div>
+        <div class="toggle-row"><input type="checkbox" id="chkTiles" checked onchange="showTiles=this.checked">Show tile layers</div>
+        <div class="toggle-row"><input type="checkbox" id="chkPerf" onchange="showPerf=this.checked">Show perf stats</div>
+      </div>
+      <div class="panel-section">
+        <h3>🎯 GRID SIZE</h3>
+        <div class="prop-row">
+          <label>SIZE</label>
+          <input type="range" min="10" max="100" value="20" oninput="GRID=+this.value;document.getElementById('gridVal').textContent=this.value">
+          <span class="val" id="gridVal">20</span>
+        </div>
+      </div>
+      <div class="panel-section">
+        <h3>⌨ SHORTCUTS</h3>
+        <div style="font-size:9px;color:var(--dim);line-height:2">
+          <kbd class="kbd">V</kbd> / <kbd class="kbd">A</kbd> Select &nbsp; <kbd class="kbd">W</kbd> Wall &nbsp; <kbd class="kbd">T</kbd> Tile &nbsp; <kbd class="kbd">C</kbd> Camp &nbsp; <kbd class="kbd">S</kbd> Spawn &nbsp; <kbd class="kbd">E</kbd> Erase<br>
+          <kbd class="kbd">Del</kbd> Delete selected &nbsp; <kbd class="kbd">Ctrl+D</kbd> Duplicate<br>
+          <kbd class="kbd">F</kbd> Zoom to fit &nbsp; <kbd class="kbd">Space+Drag</kbd> Pan &nbsp; <kbd class="kbd">Scroll</kbd> Zoom<br>
+          <kbd class="kbd">RMB</kbd> Delete hovered &nbsp; <kbd class="kbd">Alt+Click</kbd> Eyedropper<br>
+          <kbd class="kbd">Ctrl+S</kbd> Save &nbsp; <kbd class="kbd">Ctrl+Z</kbd> Undo &nbsp; <kbd class="kbd">Ctrl+Y</kbd> Redo
+        </div>
+      </div>
+      <div class="panel-section">
+        <button class="btn btn-dim btn-full" onclick="window.location.href='/'">← BACK TO GAME</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ CANVAS ═══ -->
+  <div id="canvasWrap">
+    <canvas id="editorCanvas"></canvas>
+    <div id="editorHUD">
+      <div>MOUSE: <span class="coord" id="mouseCoord">0, 0</span></div>
+      <div>ZOOM: <span class="coord" id="zoomLevel">0.20×</span></div>
+      <div>TOOL: <span class="coord" id="curTool">SELECT</span></div>
+    </div>
+    <div id="selInfo"></div>
+    <canvas id="editorMinimap" width="180" height="100"></canvas>
+    <div id="perfStats"></div>
+    <div id="bottomBar">
+      <span>REFLEX ARENA PRO EDITOR v5</span>
+      <span id="bbZoom">ZOOM: 0.20×</span>
+      <span id="bbMouse">0, 0</span>
+      <span id="bbTool">SELECT</span>
+      <span id="bbObjects">0 objects</span>
+      <span style="flex:1"></span>
+      <span id="bbSave" style="color:var(--dim)"></span>
+      <span id="bbFps">0 FPS</span>
+    </div>
+    <!-- Brush size bar — shown when tile tool active -->
+    <div id="brushBar" style="position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+      background:var(--panel);border:1px solid var(--border2);padding:4px 8px;border-radius:4px;
+      display:none;align-items:center;gap:6px;font-size:8px;color:var(--dim)">
+      <span style="font-family:'Orbitron',monospace;letter-spacing:1px">BRUSH</span>
+      <button class="brush-btn active" onclick="setBrush(1)" id="brush1">1×1</button>
+      <button class="brush-btn" onclick="setBrush(2)" id="brush2">2×2</button>
+      <button class="brush-btn" onclick="setBrush(3)" id="brush3">3×3</button>
+      <button class="brush-btn" onclick="setBrush(5)" id="brush5">5×5</button>
+      <button class="brush-btn" onclick="setBrush(0)" id="brush0" title="Fill entire layer with selected tile" style="border-color:var(--amber);color:var(--amber)">FILL</button>
+    </div>
+  </div>
+</div>
+<div id="toastArea"></div>
+
+<!-- ═══ IMPORT MODAL ═══ -->
+<div class="modal-overlay hidden" id="importModal">
+  <div class="modal">
+    <h2>📥 IMPORT MAP JSON</h2>
+    <textarea id="importData" placeholder="Paste map JSON here..."></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-amber" onclick="doImport()">IMPORT</button>
+      <button class="btn btn-dim" onclick="hideImport()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SPRITESHEET IMPORT MODAL ═══ -->
+<div class="modal-overlay hidden" id="ssModal">
+  <div class="modal" style="max-width:600px">
+    <h2>🖼️ IMPORT SPRITESHEET</h2>
+    <div class="ss-import-grid">
+      <div class="preview-area" id="ssPreviewArea">
+        <div class="drop-zone" id="ssDropZone" onclick="document.getElementById('ssFileInput').click()">
+          <div style="font-size:24px;margin-bottom:6px">📁</div>
+          <div>Drop image here or click to browse</div>
+          <div style="font-size:8px;color:var(--dim);margin-top:4px">PNG, JPG, WebP supported</div>
+        </div>
+      </div>
+      <div class="config-area">
+        <div class="prop-row"><label>NAME</label><input type="text" id="ssName" value="spritesheet" placeholder="Sheet name"></div>
+        <div class="prop-row"><label>CATEGORY</label>
+          <select id="ssCategory" style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:var(--radius);font-size:10px;font-family:'JetBrains Mono',monospace">
+            <option value="tilesets">Tileset</option>
+            <option value="players">Player Animation</option>
+            <option value="mobs">Mob / Enemy</option>
+            <option value="vfx">VFX / Effects</option>
+            <option value="ui">UI Element</option>
+            <option value="misc" selected>Misc</option>
+          </select>
+        </div>
+        <div class="prop-row"><label>COLS</label><input type="number" id="ssCols" value="4" min="1" max="64"></div>
+        <div class="prop-row"><label>ROWS</label><input type="number" id="ssRows" value="4" min="1" max="64"></div>
+        <div class="prop-row"><label>FRM W</label><input type="number" id="ssFrameW" value="0" readonly style="color:var(--dim)"></div>
+        <div class="prop-row"><label>FRM H</label><input type="number" id="ssFrameH" value="0" readonly style="color:var(--dim)"></div>
+        <div style="font-size:8px;color:var(--dim);margin-top:4px">Frame dimensions auto-calculated from image size and grid</div>
+        <div id="ssFramePreview" style="display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;max-height:100px;overflow-y:auto"></div>
+      </div>
+    </div>
+    <input type="file" id="ssFileInput" accept="image/*" style="display:none" onchange="handleSSFileSelect(event)">
+    <div class="modal-actions">
+      <button class="btn btn-purple" onclick="confirmSSImport()" id="ssConfirmBtn" disabled>IMPORT SHEET</button>
+      <button class="btn btn-dim" onclick="hideSSModal()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SPRITE BROWSER MODAL ═══ -->
+<div class="modal-overlay hidden" id="spriteBrowserModal">
+  <div class="modal" style="max-width:700px">
+    <h2>☁ SERVER SPRITE LIBRARY</h2>
+    <div style="font-size:9px;color:var(--dim);margin-bottom:10px">Click a sprite to configure it, then add it to your session.</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <input type="text" id="sbSearch" placeholder="Filter sprites..." oninput="filterSpriteBrowser(this.value)"
+        style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;font-size:10px;font-family:'JetBrains Mono',monospace;border-radius:var(--radius)">
+      <span id="sbCount" style="font-size:9px;color:var(--dim)">0 sprites</span>
+      <button class="btn btn-dim btn-sm" onclick="loadSpriteBrowserList()">↺ REFRESH</button>
+    </div>
+    <div id="sbCatTabs" style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">
+      <button class="btn btn-cyan btn-sm" onclick="setSbCategory('all')">ALL</button>
+      <button class="btn btn-dim btn-sm" onclick="setSbCategory('tilesets')">TILESETS</button>
+      <button class="btn btn-dim btn-sm" onclick="setSbCategory('players')">PLAYERS</button>
+      <button class="btn btn-dim btn-sm" onclick="setSbCategory('mobs')">MOBS</button>
+      <button class="btn btn-dim btn-sm" onclick="setSbCategory('vfx')">VFX</button>
+      <button class="btn btn-dim btn-sm" onclick="setSbCategory('ui')">UI</button>
+      <button class="btn btn-dim btn-sm" onclick="setSbCategory('misc')">MISC</button>
+    </div>
+    <div id="spriteBrowserGrid"><div style="font-size:10px;color:var(--dim);text-align:center;padding:30px">Loading sprites from server...</div></div>
+    <!-- Config area appears when a sprite is selected -->
+    <div id="sbConfigArea">
+      <div style="font-size:9px;color:var(--cyan);font-family:'Orbitron',monospace;letter-spacing:1px;margin-bottom:8px">CONFIGURE SPRITESHEET</div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="flex:0 0 120px;text-align:center">
+          <img id="sbPreviewImg" src="" style="max-width:120px;max-height:90px;image-rendering:pixelated;border:1px solid var(--border);border-radius:var(--radius);background:repeating-conic-gradient(#1a1a2e 0% 25%,#12121e 0% 50%) 0 0/8px 8px">
+          <div id="sbPreviewSize" style="font-size:8px;color:var(--dim);margin-top:3px"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+          <div class="prop-row"><label>NAME</label><input type="text" id="sbSheetName" style="flex:1"></div>
+          <div class="prop-row"><label>COLS</label><input type="number" id="sbCols" value="1" min="1" max="64" oninput="updateSbPreview()"></div>
+          <div class="prop-row"><label>ROWS</label><input type="number" id="sbRows" value="1" min="1" max="64" oninput="updateSbPreview()"></div>
+          <div class="prop-row"><label>FRAME</label><span id="sbFrameSize" style="color:var(--cyan);font-size:10px">–</span></div>
+          <div id="sbFramePreviewMini" style="display:flex;gap:2px;flex-wrap:wrap;max-height:60px;overflow:hidden"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-green" id="sbAddBtn" onclick="addServerSpriteToEditor()" disabled>+ ADD TO SESSION</button>
+      <button class="btn btn-dim" onclick="hideSpriteBrowser()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MAP MANAGER MODAL ═══ -->
+<div class="modal-overlay hidden" id="mapManagerModal">
+  <div class="modal" style="max-width:740px;width:96vw">
+    <h2>🗂 MAP MANAGER</h2>
+    <div style="font-size:8px;color:var(--dim);margin-bottom:12px">Drag a saved map onto a mode slot. Click ACTIVATE to make it live for new matches.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;min-height:260px">
+      <div>
+        <div style="font-size:9px;color:var(--cyan);letter-spacing:1px;margin-bottom:8px;font-family:'Orbitron',monospace">MODE SLOTS</div>
+        <div id="mmSlotList"></div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:9px;color:var(--cyan);letter-spacing:1px;font-family:'Orbitron',monospace">SAVED MAPS</span>
+          <button class="btn btn-dim btn-sm" onclick="loadMapManagerData()">↺ REFRESH</button>
+        </div>
+        <div id="mmMapList" style="max-height:380px;overflow-y:auto"></div>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:8px;color:var(--dim);min-height:14px" id="mmStatus"></div>
+    <div class="modal-actions">
+      <button class="btn btn-dim" onclick="hideMapManager()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SAVE TO SERVER MODAL ═══ -->
+<div class="modal-overlay hidden" id="saveServerModal">
+  <div class="modal" style="max-width:400px">
+    <h2>☁ SAVE TO SERVER</h2>
+    <div class="prop-row"><label>NAME</label><input type="text" id="serverMapName" value="" placeholder="my_map" style="flex:1"></div>
+    <div style="font-size:8px;color:var(--dim);margin:6px 0">Letters, numbers, hyphens and underscores only</div>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="confirmSaveToServer()">SAVE</button>
+      <button class="btn btn-dim" onclick="document.getElementById('saveServerModal').classList.add('hidden')">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// REFLEX ARENA — PRO MAP EDITOR v4 (FILE-BASED STORAGE)
+// ═══════════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('editorCanvas');
+const ctx = canvas.getContext('2d');
+const mmCanvas = document.getElementById('editorMinimap');
+const mmCtx = mmCanvas.getContext('2d');
+const animCanvas = document.getElementById('animPreviewCanvas');
+const animCtx = animCanvas.getContext('2d');
+
+let VW, VH;
+function resize(){
+  const wrap = document.getElementById('canvasWrap');
+  VW = canvas.width = wrap.clientWidth;
+  VH = canvas.height = wrap.clientHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── STATE ──
+let mapW = 9600, mapH = 5400;
+let walls = [], camps = [], spawns = [], towers = [];
+let shopZone = {x:mapW*.47, y:mapH*.47, w:mapW*.06, h:mapH*.06, id:'shop'};
+let nextId = 1;
+
+// ── SPRITESHEETS (FILE-BASED) ──
+let spriteSheets = []; // [{id, name, path, img, cols, rows, frameW, frameH}]
+let tileLayers = [];   // [{id, name, visible, opacity, tiles:[{x,y,sheetId,col,row,w,h}]}]
+let sounds = [];       // [{id, name, path}]
+let spriteAssignments = {}; // {mobType: {sheetName, startFrame, endFrame, fps}, className: {...}, vfx_name: {...}}
+
+// ── VIEW ──
+let showCollision = true, showTowerRange = true, showGrid = true, snapEnabled = true, showTiles = true, showPerf = false;
+let camX = 0, camY = 0, zoom = 0.2;
+const MIN_ZOOM = 0.03, MAX_ZOOM = 3;
+let GRID = 20;
+
+// ── TOOL STATE ──
+let currentTool = 'select';
+let campType = 'wraith';
+let selected = null;
+let dragging = false, dragStart = {x:0,y:0};
+let drawing = false, drawStart = {x:0,y:0};
+let resizing = false, resizeHandle = null;
+let panning = false, panStart = {x:0,y:0}, panCamStart = {x:0,y:0};
+
+// ── TILE BRUSH ──
+let brushSize = 1; // 1=1x1, 2=2x2, etc. 0=fill
+
+// ── UNSAVED CHANGES ──
+let _unsaved = false;
+function _markDirty(){ _unsaved=true; const el=document.getElementById('bbSave'); if(el) el.textContent='● unsaved'; el&&(el.style.color='var(--amber)'); }
+function _markSaved(){ _unsaved=false; const el=document.getElementById('bbSave'); if(el){el.textContent='✓ saved';el.style.color='var(--green)';setTimeout(()=>{if(el)el.textContent=''},2000);} }
+
+// ── TOAST ──
+function showToast(msg, type='ok', ms=2300){
+  const area = document.getElementById('toastArea');
+  if(!area) return;
+  const d = document.createElement('div');
+  d.className = 'toast ' + type;
+  d.textContent = msg;
+  area.appendChild(d);
+  setTimeout(() => d.remove(), ms + 400);
+}
+
+// ── ASSIGNMENTS AUTO-SAVE (debounced) ──
+let _assignSaveTimer = null;
+function _scheduleAssignSave(){
+  if(_assignSaveTimer) clearTimeout(_assignSaveTimer);
+  _assignSaveTimer = setTimeout(saveGlobalAssignments, 800);
+}
+
+// ── TILE PAINT ──
+let selectedTile = null; // {sheetId, sheetName, col, row}
+let tileSize = 40;
+let activeTileLayer = null;
+
+// ── ANIMATION PREVIEW ──
+let animPlaying = true, animFps = 8, animFrame = 0, animSheet = null, animLastT = 0;
+let animEntityKey = null, animEntityState = 'idle';
+
+// ── UNDO ──
+let undoStack = [], redoStack = [], maxUndo = 50;
+
+// ── PERF ──
+let frameCount = 0, lastFpsTime = performance.now(), currentFps = 0;
+
+// ── CAMP DEFAULTS ──
+const CAMP_DEFAULTS = {
+  wraith:{count:3,gold:30,respawnTime:20000,color:'#9966cc',icon:'👻',desc:'Ranged spirit'},
+  golem:{count:1,gold:35,respawnTime:30000,color:'#886644',icon:'🗿',desc:'Melee AoE'},
+  dragon:{count:1,gold:60,respawnTime:45000,color:'#ff6600',icon:'🐉',desc:'Cone fire'},
+  sentinel:{count:2,gold:28,respawnTime:22000,color:'#4488ff',icon:'⚡',desc:'Chain zap'},
+  berserker:{count:1,gold:40,respawnTime:28000,color:'#ff2244',icon:'🔥',desc:'Fast melee'},
+  lich:{count:1,gold:55,respawnTime:38000,color:'#aa44ff',icon:'💀',desc:'Dark bolts'},
+  spider:{count:4,gold:25,respawnTime:16000,color:'#44aa44',icon:'🕷️',desc:'Poison bite'},
+  vampire:{count:2,gold:30,respawnTime:25000,color:'#cc0033',icon:'🧛',desc:'Lifesteal'},
+  hydra:{count:1,gold:70,respawnTime:50000,color:'#22aa88',icon:'🐍',desc:'7-way spray'},
+  shaman:{count:2,gold:28,respawnTime:25000,color:'#ddaa22',icon:'🪄',desc:'Heals mobs'},
+  phoenix:{count:1,gold:50,respawnTime:40000,color:'#ff4400',icon:'🔱',desc:'Revives'},
+  minotaur:{count:1,gold:55,respawnTime:35000,color:'#884422',icon:'🐂',desc:'Charge atk'},
+  banshee:{count:2,gold:26,respawnTime:22000,color:'#aabbff',icon:'👻',desc:'Scream AoE'},
+  infernal:{count:1,gold:80,respawnTime:50000,color:'#ff2200',icon:'😈',desc:'Boss, fire'},
+};
+const TOWER_DEFAULT = {hp:500,maxHp:500,radius:30,atkRange:350,atkCd:1000,dmg:25};
+
+function snap(v){ return snapEnabled ? Math.round(v/GRID)*GRID : Math.round(v); }
+function s2w(sx,sy){ return {x:sx/zoom+camX, y:sy/zoom+camY}; }
+function w2s(wx,wy){ return {x:(wx-camX)*zoom, y:(wy-camY)*zoom}; }
+
+function fitMap(){
+  const pad = 40;
+  const scaleX = (VW - pad*2) / mapW;
+  const scaleY = (VH - pad*2) / mapH;
+  zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(scaleX, scaleY)));
+  camX = mapW/2 - VW/2/zoom;
+  camY = mapH/2 - VH/2/zoom;
+  document.getElementById('zoomLevel').textContent = zoom.toFixed(2)+'×';
+}
+
+// ══════════════════════════════════════════
+// FILE UPLOAD FUNCTIONS (NEW)
+// ══════════════════════════════════════════
+
+async function uploadSpriteToServer(dataUrl, fileName, category) {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+
+  const formData = new FormData();
+  formData.append('sprite', blob, fileName);
+  formData.append('name', fileName);
+
+  const cat = category || 'misc';
+  try {
+    const uploadResponse = await fetch('/api/upload-sprite?category=' + encodeURIComponent(cat), {
+      method: 'POST',
+      body: formData
+    });
+    if (!uploadResponse.ok) throw new Error('Upload failed');
+    const result = await uploadResponse.json();
+    return result.path;
+  } catch (error) {
+    console.error('Upload error:', error);
+    alert('Failed to upload sprite to server. Make sure server is running.');
+    return dataUrl; // fallback to base64
+  }
+}
+
+async function uploadSoundToServer(dataUrl, fileName) {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  
+  const formData = new FormData();
+  formData.append('sound', blob, fileName);
+  formData.append('name', fileName);
+  
+  try {
+    const uploadResponse = await fetch('/api/upload-sound', {
+      method: 'POST',
+      body: formData
+    });
+    const result = await uploadResponse.json();
+    return result.path;
+  } catch (error) {
+    console.error('Upload error:', error);
+    alert('Failed to upload sound to server.');
+    return dataUrl;
+  }
+}
+
+// ══════════════════════════════════════════
+// TAB SYSTEM
+// ══════════════════════════════════════════
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase() === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const el = document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1));
+  if(el) el.classList.add('active');
+}
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  setTimeout(resize, 50);
+}
+
+// ══════════════════════════════════════════
+// MOB TYPE GRID
+// ══════════════════════════════════════════
+function buildMobGrid(){
+  const grid = document.getElementById('campTypeGrid');
+  grid.innerHTML = '';
+  for(const [type, cd] of Object.entries(CAMP_DEFAULTS)){
+    const btn = document.createElement('button');
+    btn.className = 'mob-btn' + (type === campType ? ' active' : '');
+    btn.id = 'mob-' + type;
+    btn.innerHTML = `<span class="mob-icon">${cd.icon}</span><span class="mob-name">${type.toUpperCase()}</span>`;
+    btn.onclick = () => setCampType(type);
+    grid.appendChild(btn);
+  }
+}
+function setCampType(t){
+  campType = t;
+  document.querySelectorAll('.mob-btn').forEach(b => b.classList.toggle('active', b.id === 'mob-'+t));
+}
+buildMobGrid();
+
+// ══════════════════════════════════════════
+// INPUT
+// ══════════════════════════════════════════
+const K = {};
+const M = {x:0,y:0,down:false,worldX:0,worldY:0};
+
+window.addEventListener('keydown', e => {
+  K[e.code] = true;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
+  if(e.code==='Delete'||e.code==='Backspace'){e.preventDefault();deleteSelected();}
+  if(e.code==='Escape'){selected=null;updateProps();}
+  if(e.code==='KeyD'&&e.ctrlKey){e.preventDefault();duplicateSelected();}
+  if(e.code==='KeyS'&&e.ctrlKey){e.preventDefault();saveToFile();}
+  if(e.code==='KeyZ'&&e.ctrlKey){e.preventDefault();undo();}
+  if(e.code==='KeyY'&&e.ctrlKey){e.preventDefault();redo();}
+  if(e.code==='KeyV') setTool('select');
+  if(e.code==='KeyW'&&!e.ctrlKey) setTool('wall');
+  if(e.code==='KeyT') setTool('tile');
+  if(e.code==='KeyC'&&!e.ctrlKey) setTool('camp');
+  if(e.code==='KeyS'&&!e.ctrlKey&&!e.metaKey) setTool('spawn');
+  if(e.code==='KeyE') setTool('erase');
+  // F = zoom to fit map
+  if(e.code==='KeyF'&&!e.ctrlKey){ fitMap(); }
+  // A = select tool shortcut alias
+  if(e.code==='KeyA'&&!e.ctrlKey) setTool('select');
+});
+window.addEventListener('keyup', e => K[e.code] = false);
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  M.x = e.clientX - rect.left;
+  M.y = e.clientY - rect.top;
+  const w = s2w(M.x, M.y);
+  M.worldX = w.x; M.worldY = w.y;
+  const coordStr = `${Math.round(w.x)}, ${Math.round(w.y)}`;
+  document.getElementById('mouseCoord').textContent = coordStr;
+  document.getElementById('bbMouse').textContent = coordStr;
+
+  if(panning){
+    camX = panCamStart.x - (M.x - panStart.x)/zoom;
+    camY = panCamStart.y - (M.y - panStart.y)/zoom;
+  }
+  if(dragging && selected){
+    const dx = (M.x - dragStart.x)/zoom, dy = (M.y - dragStart.y)/zoom;
+    if(selected.type==='shop'){
+      shopZone.x = snap(selected.startX + dx);
+      shopZone.y = snap(selected.startY + dy);
+    } else {
+      selected.obj.x = snap(selected.startX + dx);
+      selected.obj.y = snap(selected.startY + dy);
+    }
+    updateProps();
+  }
+  if(resizing && selected && selected.type==='wall'){
+    const w2 = s2w(M.x, M.y);
+    if(resizeHandle==='br'){
+      selected.obj.w = Math.max(20, snap(w2.x - selected.obj.x));
+      selected.obj.h = Math.max(20, snap(w2.y - selected.obj.y));
+    } else if(resizeHandle==='tl'){
+      const nx = snap(w2.x), ny = snap(w2.y);
+      selected.obj.w = Math.max(20, selected.obj.x + selected.obj.w - nx);
+      selected.obj.h = Math.max(20, selected.obj.y + selected.obj.h - ny);
+      selected.obj.x = nx; selected.obj.y = ny;
+    }
+    updateProps();
+  }
+  if(M.down && currentTool==='tile' && activeTileLayer!=null){
+    if(selectedTile) placeTileAtMouse();
+  }
+  // Drag-erase: works on all object types while holding mouse
+  if(M.down && currentTool==='erase' && !panning){
+    const hw = s2w(M.x, M.y);
+    const hit = hitTest(hw.x, hw.y);
+    if(hit){
+      if(hit.type==='wall') walls=walls.filter(ww=>ww.id!==hit.obj.id);
+      else if(hit.type==='camp') camps=camps.filter(c=>c.id!==hit.obj.id);
+      else if(hit.type==='spawn') spawns=spawns.filter(s=>s.id!==hit.obj.id);
+      else if(hit.type==='tower') towers=towers.filter(t=>t.id!==hit.obj.id);
+    }
+    if(activeTileLayer!=null) eraseTileAtMouse();
+  }
+});
+
+canvas.addEventListener('mousedown', e => {
+  if(e.button===1||(e.button===0&&K['Space'])){
+    panning=true; panStart={x:M.x,y:M.y}; panCamStart={x:camX,y:camY}; return;
+  }
+  if(e.button===2){panning=true;panStart={x:M.x,y:M.y};panCamStart={x:camX,y:camY};return;}
+  if(e.button!==0) return;
+  M.down = true;
+  const w = s2w(M.x, M.y);
+
+  if(currentTool==='select'){
+    if(selected && selected.type==='wall'){
+      const s = selected.obj;
+      const br = w2s(s.x+s.w, s.y+s.h);
+      const tl = w2s(s.x, s.y);
+      if(Math.abs(M.x-br.x)<8&&Math.abs(M.y-br.y)<8){resizing=true;resizeHandle='br';return;}
+      if(Math.abs(M.x-tl.x)<8&&Math.abs(M.y-tl.y)<8){resizing=true;resizeHandle='tl';return;}
+    }
+    const hit = hitTest(w.x, w.y);
+    if(hit){
+      pushUndo();
+      selected=hit; dragging=true; dragStart={x:M.x,y:M.y};
+      selected.startX=hit.obj.x; selected.startY=hit.obj.y;
+      updateProps();
+    } else {selected=null;updateProps();}
+  } else if(currentTool==='wall'){
+    drawing=true; drawStart={x:snap(w.x),y:snap(w.y)};
+  } else if(currentTool==='camp'){
+    pushUndo();
+    const cd=CAMP_DEFAULTS[campType];
+    camps.push({x:snap(w.x),y:snap(w.y),type:campType,count:cd.count,gold:cd.gold,respawnTime:cd.respawnTime,id:nextId++});
+  } else if(currentTool==='spawn'){
+    pushUndo();
+    const team=spawns.filter(s=>s.team===1).length<=spawns.filter(s=>s.team===2).length?1:2;
+    spawns.push({x:snap(w.x),y:snap(w.y),team,id:nextId++});
+  } else if(currentTool==='shop'){
+    pushUndo();
+    shopZone.x=snap(w.x-shopZone.w/2); shopZone.y=snap(w.y-shopZone.h/2);
+  } else if(currentTool==='tower'){
+    pushUndo();
+    const team=towers.filter(t=>t.team===1).length<=towers.filter(t=>t.team===2).length?1:2;
+    towers.push({x:snap(w.x),y:snap(w.y),team,...TOWER_DEFAULT,id:nextId++});
+  } else if(currentTool==='erase'){
+    const hit=hitTest(w.x,w.y);
+    if(hit){
+      pushUndo();
+      if(hit.type==='wall') walls=walls.filter(ww=>ww.id!==hit.obj.id);
+      else if(hit.type==='camp') camps=camps.filter(c=>c.id!==hit.obj.id);
+      else if(hit.type==='spawn') spawns=spawns.filter(s=>s.id!==hit.obj.id);
+      else if(hit.type==='tower') towers=towers.filter(t=>t.id!==hit.obj.id);
+    }
+    if(activeTileLayer!=null) eraseTileAtMouse();
+  } else if(currentTool==='tile'){
+    if(selectedTile && activeTileLayer!=null) placeTileAtMouse();
+    else if(currentTool==='tile' && activeTileLayer!=null) eraseTileAtMouse();
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  M.down = false;
+  if(panning){panning=false;return;}
+  if(resizing){resizing=false;resizeHandle=null;return;}
+  if(dragging){dragging=false;return;}
+  if(drawing && currentTool==='wall'){
+    drawing=false; pushUndo();
+    const w=s2w(M.x,M.y);
+    const x1=Math.min(drawStart.x,snap(w.x)),y1=Math.min(drawStart.y,snap(w.y));
+    const x2=Math.max(drawStart.x,snap(w.x)),y2=Math.max(drawStart.y,snap(w.y));
+    walls.push({x:x1,y:y1,w:Math.max(20,x2-x1),h:Math.max(20,y2-y1),id:nextId++});
+  }
+});
+
+// Right-click: delete hovered object (select mode) or pick tile (tile mode)
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const w = s2w(M.x, M.y);
+  if(currentTool==='select'||currentTool==='erase'){
+    const hit = hitTest(w.x, w.y);
+    if(hit){
+      pushUndo();
+      if(hit.type==='wall') walls=walls.filter(ww=>ww.id!==hit.obj.id);
+      else if(hit.type==='camp') camps=camps.filter(c=>c.id!==hit.obj.id);
+      else if(hit.type==='spawn') spawns=spawns.filter(s=>s.id!==hit.obj.id);
+      else if(hit.type==='tower') towers=towers.filter(t=>t.id!==hit.obj.id);
+      if(selected && selected.obj===hit.obj){ selected=null; updateProps(); }
+    } else if(activeTileLayer!=null) eraseTileAtMouse();
+  }
+});
+
+// Alt+click eyedropper: pick tile under cursor
+canvas.addEventListener('click', e => {
+  if(!e.altKey) return;
+  e.preventDefault();
+  if(activeTileLayer==null) return;
+  const layer = tileLayers.find(l=>l.id===activeTileLayer);
+  if(!layer) return;
+  const w = s2w(M.x, M.y);
+  const gx = Math.floor(w.x/tileSize)*tileSize, gy = Math.floor(w.y/tileSize)*tileSize;
+  const tile = layer.tiles.find(t=>t.x===gx&&t.y===gy);
+  if(tile){
+    selectedTile = {sheetId:tile.sheetId, sheetName:tile.sheetName, col:tile.col, row:tile.row};
+    setTool('tile');
+    buildTilePalette();
+    showToast(`Picked [${tile.col},${tile.row}] from ${tile.sheetName}`,'ok');
+  }
+});
+
+// ── Drag-and-drop JSON map onto canvas ──
+canvas.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
+canvas.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = Array.from(e.dataTransfer.files).find(f => f.name.endsWith('.json'));
+  if(file){ _loadFileRaw(file); return; }
+  // Also accept dragged text (e.g. from text editor)
+  const text = e.dataTransfer.getData('text/plain');
+  if(text){ try{ loadMapData(JSON.parse(text)).then(()=>showToast('Map pasted from clipboard','ok')); }catch(ex){ showToast('Invalid JSON','err'); } }
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const oldZoom = zoom;
+  zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * (e.deltaY > 0 ? 0.9 : 1.1)));
+  const wx = M.x/oldZoom + camX, wy = M.y/oldZoom + camY;
+  camX = wx - M.x/zoom; camY = wy - M.y/zoom;
+  const zStr = zoom.toFixed(2)+'×';
+  document.getElementById('zoomLevel').textContent = zStr;
+  document.getElementById('bbZoom').textContent = 'ZOOM: '+zStr;
+});
+
+// ══════════════════════════════════════════
+// HIT TEST
+// ══════════════════════════════════════════
+function hitTest(wx, wy){
+  for(let i=towers.length-1;i>=0;i--){const t=towers[i];if((wx-t.x)**2+(wy-t.y)**2<40*40)return{type:'tower',obj:t};}
+  for(let i=walls.length-1;i>=0;i--){const w=walls[i];if(wx>=w.x&&wx<=w.x+w.w&&wy>=w.y&&wy<=w.y+w.h)return{type:'wall',obj:w};}
+  if(wx>=shopZone.x&&wx<=shopZone.x+shopZone.w&&wy>=shopZone.y&&wy<=shopZone.y+shopZone.h)return{type:'shop',obj:shopZone};
+  for(let i=camps.length-1;i>=0;i--){const c=camps[i];if((wx-c.x)**2+(wy-c.y)**2<45*45)return{type:'camp',obj:c};}
+  for(let i=spawns.length-1;i>=0;i--){const s=spawns[i];if((wx-s.x)**2+(wy-s.y)**2<25*25)return{type:'spawn',obj:s};}
+  return null;
+}
+
+// ══════════════════════════════════════════
+// TOOLS
+// ══════════════════════════════════════════
+function setTool(t){
+  currentTool = t;
+  document.querySelectorAll('.tb-btn').forEach(b=>b.classList.remove('active'));
+  const el=document.getElementById('tb-'+t);
+  if(el) el.classList.add('active');
+  const label = t.toUpperCase();
+  document.getElementById('curTool').textContent = label;
+  document.getElementById('bbTool').textContent = label;
+  if(t!=='select') selected=null;
+  if(t==='tile') switchTab('layers');
+  const bb = document.getElementById('brushBar');
+  if(bb) bb.style.display = (t==='tile'||t==='erase') ? 'flex' : 'none';
+  updateProps();
+}
+
+// ══════════════════════════════════════════
+// UNDO / REDO
+// ══════════════════════════════════════════
+function getState(){
+  return JSON.stringify({walls,camps,spawns,towers,shopZone,tileLayers});
+}
+function pushUndo(){
+  undoStack.push(getState());
+  if(undoStack.length>maxUndo) undoStack.shift();
+  redoStack=[];
+}
+function restoreState(json){
+  const s=JSON.parse(json);
+  walls=s.walls||[];camps=s.camps||[];spawns=s.spawns||[];towers=s.towers||[];
+  if(s.shopZone) Object.assign(shopZone,s.shopZone);
+  if(s.tileLayers) tileLayers=s.tileLayers;
+  selected=null;updateProps();renderLayers();
+}
+function undo(){if(!undoStack.length)return;redoStack.push(getState());restoreState(undoStack.pop());}
+function redo(){if(!redoStack.length)return;undoStack.push(getState());restoreState(redoStack.pop());}
+
+// ══════════════════════════════════════════
+// PROPERTIES PANEL
+// ══════════════════════════════════════════
+function updateProps(){
+  const el=document.getElementById('propContent');
+  const info=document.getElementById('selInfo');
+  if(!selected){
+    el.innerHTML='<div style="font-size:9px;color:var(--dim)">Select an object or place a new one</div>';
+    info.style.display='none'; return;
+  }
+  info.style.display='block';
+  const o=selected.obj;
+  if(selected.type==='wall'){
+    info.textContent=`WALL [${o.id}] — ${Math.round(o.w)}×${Math.round(o.h)} @ (${Math.round(o.x)}, ${Math.round(o.y)})`;
+    el.innerHTML=`
+      <div class="prop-row"><label>X</label><input type="number" value="${Math.round(o.x)}" onchange="selected.obj.x=+this.value"></div>
+      <div class="prop-row"><label>Y</label><input type="number" value="${Math.round(o.y)}" onchange="selected.obj.y=+this.value"></div>
+      <div class="prop-row"><label>W</label><input type="number" value="${Math.round(o.w)}" onchange="selected.obj.w=Math.max(20,+this.value)"></div>
+      <div class="prop-row"><label>H</label><input type="number" value="${Math.round(o.h)}" onchange="selected.obj.h=Math.max(20,+this.value)"></div>`;
+  } else if(selected.type==='camp'){
+    const cd=CAMP_DEFAULTS[o.type]||CAMP_DEFAULTS.wraith;
+    info.textContent=`${cd.icon} ${o.type.toUpperCase()} — ${cd.desc} — ×${o.count}`;
+    el.innerHTML=`
+      <div class="prop-row"><label>TYPE</label><select onchange="selected.obj.type=this.value;updateProps()">
+        ${Object.entries(CAMP_DEFAULTS).map(([t,d])=>`<option value="${t}" ${o.type===t?'selected':''}>${d.icon} ${t.toUpperCase()}</option>`).join('')}
+      </select></div>
+      <div class="prop-row"><label>COUNT</label><input type="number" value="${o.count}" min="1" max="8" onchange="selected.obj.count=+this.value"></div>
+      <div class="prop-row"><label>GOLD</label><input type="number" value="${o.gold}" min="10" step="5" onchange="selected.obj.gold=+this.value"></div>
+      <div class="prop-row"><label>RESPWN</label><input type="number" value="${o.respawnTime/1000}" min="5" step="1" onchange="selected.obj.respawnTime=+this.value*1000"> <span style="font-size:8px;color:var(--dim)">sec</span></div>
+      <div class="prop-row"><label>X</label><input type="number" value="${Math.round(o.x)}" onchange="selected.obj.x=+this.value"></div>
+      <div class="prop-row"><label>Y</label><input type="number" value="${Math.round(o.y)}" onchange="selected.obj.y=+this.value"></div>`;
+  } else if(selected.type==='spawn'){
+    info.textContent=`SPAWN [${o.team===1?'BLUE':'RED'}] @ (${Math.round(o.x)}, ${Math.round(o.y)})`;
+    el.innerHTML=`
+      <div class="prop-row"><label>TEAM</label><select onchange="selected.obj.team=+this.value;updateProps()">
+        <option value="1" ${o.team===1?'selected':''}>🔵 BLUE</option>
+        <option value="2" ${o.team===2?'selected':''}>🔴 RED</option>
+      </select></div>
+      <div class="prop-row"><label>X</label><input type="number" value="${Math.round(o.x)}" onchange="selected.obj.x=+this.value"></div>
+      <div class="prop-row"><label>Y</label><input type="number" value="${Math.round(o.y)}" onchange="selected.obj.y=+this.value"></div>`;
+  } else if(selected.type==='shop'){
+    info.textContent=`SHOP ZONE — ${Math.round(shopZone.w)}×${Math.round(shopZone.h)}`;
+    el.innerHTML=`
+      <div class="prop-row"><label>X</label><input type="number" value="${Math.round(shopZone.x)}" onchange="shopZone.x=+this.value"></div>
+      <div class="prop-row"><label>Y</label><input type="number" value="${Math.round(shopZone.y)}" onchange="shopZone.y=+this.value"></div>
+      <div class="prop-row"><label>W</label><input type="number" value="${Math.round(shopZone.w)}" onchange="shopZone.w=Math.max(40,+this.value)"></div>
+      <div class="prop-row"><label>H</label><input type="number" value="${Math.round(shopZone.h)}" onchange="shopZone.h=Math.max(40,+this.value)"></div>`;
+  } else if(selected.type==='tower'){
+    info.textContent=`TOWER [${o.team===1?'🔵 BLUE':'🔴 RED'}] HP:${o.hp} DMG:${o.dmg}`;
+    el.innerHTML=`
+      <div class="prop-row"><label>TEAM</label><select onchange="selected.obj.team=+this.value;updateProps()">
+        <option value="1" ${o.team===1?'selected':''}>🔵 BLUE</option>
+        <option value="2" ${o.team===2?'selected':''}>🔴 RED</option>
+      </select></div>
+      <div class="prop-row"><label>HP</label><input type="number" value="${o.hp}" min="100" step="50" onchange="selected.obj.hp=selected.obj.maxHp=+this.value"></div>
+      <div class="prop-row"><label>DMG</label><input type="number" value="${o.dmg}" min="5" step="5" onchange="selected.obj.dmg=+this.value"></div>
+      <div class="prop-row"><label>RANGE</label><input type="number" value="${o.atkRange}" min="100" step="25" onchange="selected.obj.atkRange=+this.value"></div>
+      <div class="prop-row"><label>ATK CD</label><input type="number" value="${o.atkCd}" min="200" step="100" onchange="selected.obj.atkCd=+this.value"> <span style="font-size:8px;color:var(--dim)">ms</span></div>
+      <div class="prop-row"><label>X</label><input type="number" value="${Math.round(o.x)}" onchange="selected.obj.x=+this.value"></div>
+      <div class="prop-row"><label>Y</label><input type="number" value="${Math.round(o.y)}" onchange="selected.obj.y=+this.value"></div>`;
+  }
+}
+
+function deleteSelected(){
+  if(!selected)return; pushUndo();
+  if(selected.type==='wall') walls=walls.filter(w=>w.id!==selected.obj.id);
+  else if(selected.type==='camp') camps=camps.filter(c=>c.id!==selected.obj.id);
+  else if(selected.type==='spawn') spawns=spawns.filter(s=>s.id!==selected.obj.id);
+  else if(selected.type==='tower') towers=towers.filter(t=>t.id!==selected.obj.id);
+  selected=null;updateProps();
+}
+function duplicateSelected(){
+  if(!selected)return; pushUndo();
+  const o=selected.obj;
+  if(selected.type==='wall'){const n={x:o.x+40,y:o.y+40,w:o.w,h:o.h,id:nextId++};walls.push(n);selected={type:'wall',obj:n};}
+  else if(selected.type==='camp'){const n={...o,x:o.x+60,y:o.y+60,id:nextId++};camps.push(n);selected={type:'camp',obj:n};}
+  else if(selected.type==='spawn'){const n={...o,x:o.x+40,y:o.y+40,id:nextId++};spawns.push(n);selected={type:'spawn',obj:n};}
+  else if(selected.type==='tower'){const n={...o,x:o.x+60,y:o.y+60,id:nextId++};towers.push(n);selected={type:'tower',obj:n};}
+  updateProps();
+}
+
+// ══════════════════════════════════════════
+// SPRITESHEET SYSTEM (FILE-BASED)
+// ══════════════════════════════════════════
+let ssImportImg = null, ssImportDataUrl = null;
+
+function showSpriteImportModal(){
+  ssImportImg = null; ssImportDataUrl = null;
+  document.getElementById('ssPreviewArea').innerHTML = `<div class="drop-zone" id="ssDropZone" onclick="document.getElementById('ssFileInput').click()">
+    <div style="font-size:24px;margin-bottom:6px">📁</div><div>Drop image here or click to browse</div>
+    <div style="font-size:8px;color:var(--dim);margin-top:4px">PNG, JPG, WebP supported</div></div>`;
+  document.getElementById('ssName').value = 'spritesheet_'+(spriteSheets.length+1);
+  document.getElementById('ssCols').value = 4;
+  document.getElementById('ssRows').value = 4;
+  document.getElementById('ssFrameW').value = 0;
+  document.getElementById('ssFrameH').value = 0;
+  document.getElementById('ssFramePreview').innerHTML = '';
+  document.getElementById('ssConfirmBtn').disabled = true;
+  document.getElementById('ssModal').classList.remove('hidden');
+  setupDropZone();
+}
+function hideSSModal(){ document.getElementById('ssModal').classList.add('hidden'); }
+
+function setupDropZone(){
+  const dz = document.getElementById('ssDropZone');
+  if(!dz) return;
+  dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('dragover');});
+  dz.addEventListener('dragleave', ()=>dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e=>{e.preventDefault();dz.classList.remove('dragover');
+    if(e.dataTransfer.files.length) loadSSImage(e.dataTransfer.files[0]);
+  });
+}
+function handleSSFileSelect(e){
+  if(e.target.files.length) loadSSImage(e.target.files[0]);
+  e.target.value='';
+}
+function loadSSImage(file){
+  const reader = new FileReader();
+  reader.onload = ev => {
+    ssImportDataUrl = ev.target.result;
+    const img = new Image();
+    img.onload = () => {
+      ssImportImg = img;
+      document.getElementById('ssPreviewArea').innerHTML = '';
+      const preview = document.createElement('img');
+      preview.src = ssImportDataUrl;
+      preview.style.cssText = 'max-width:100%;max-height:200px;image-rendering:pixelated';
+      document.getElementById('ssPreviewArea').appendChild(preview);
+      document.getElementById('ssConfirmBtn').disabled = false;
+      updateSSFrameInfo();
+    };
+    img.src = ssImportDataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+document.getElementById('ssCols').addEventListener('input', updateSSFrameInfo);
+document.getElementById('ssRows').addEventListener('input', updateSSFrameInfo);
+
+function updateSSFrameInfo(){
+  if(!ssImportImg) return;
+  const cols = +document.getElementById('ssCols').value || 1;
+  const rows = +document.getElementById('ssRows').value || 1;
+  const fw = Math.floor(ssImportImg.naturalWidth / cols);
+  const fh = Math.floor(ssImportImg.naturalHeight / rows);
+  document.getElementById('ssFrameW').value = fw;
+  document.getElementById('ssFrameH').value = fh;
+  const container = document.getElementById('ssFramePreview');
+  container.innerHTML = '';
+  const maxShow = Math.min(cols * rows, 32);
+  for(let i = 0; i < maxShow; i++){
+    const c = i % cols, r = Math.floor(i / cols);
+    const cvs = document.createElement('canvas');
+    cvs.width = fw; cvs.height = fh;
+    cvs.style.cssText = 'width:28px;height:28px;image-rendering:pixelated;border:1px solid var(--border);border-radius:2px;background:#12121e';
+    const cx = cvs.getContext('2d');
+    cx.drawImage(ssImportImg, c*fw, r*fh, fw, fh, 0, 0, fw, fh);
+    container.appendChild(cvs);
+  }
+  if(cols*rows > maxShow){
+    const more = document.createElement('span');
+    more.style.cssText = 'font-size:8px;color:var(--dim);padding:4px';
+    more.textContent = `+${cols*rows-maxShow} more`;
+    container.appendChild(more);
+  }
+}
+
+async function confirmSSImport() {
+  if(!ssImportImg) return;
+  const name = document.getElementById('ssName').value || 'sheet_'+nextId;
+  const cols = +document.getElementById('ssCols').value || 1;
+  const rows = +document.getElementById('ssRows').value || 1;
+  const fw = Math.floor(ssImportImg.naturalWidth / cols);
+  const fh = Math.floor(ssImportImg.naturalHeight / rows);
+  
+  // Upload to server with chosen category
+  const category = document.getElementById('ssCategory').value || 'misc';
+  const fileName = `${name}.png`;
+  const spritePath = await uploadSpriteToServer(ssImportDataUrl, fileName, category);
+  
+  const sheet = {
+    id: nextId++, 
+    name, 
+    path: spritePath,
+    img: ssImportImg,
+    cols, rows, 
+    frameW: fw, 
+    frameH: fh
+  };
+  
+  spriteSheets.push(sheet);
+  if(!animSheet) animSheet = sheet;
+  renderSpriteSheetList();
+  buildTilePalette();
+  hideSSModal();
+}
+
+function renderSpriteSheetList(){
+  const el = document.getElementById('spriteSheetList');
+  if(!spriteSheets.length){
+    el.innerHTML = '<div style="font-size:9px;color:var(--dim)">No spritesheets imported yet</div>';
+    return;
+  }
+  el.innerHTML = '';
+  for(const ss of spriteSheets){
+    const card = document.createElement('div');
+    card.className = 'sprite-card';
+    card.innerHTML = `
+      <div class="sprite-card-header" onclick="this.nextElementSibling.classList.toggle('open')">
+        <span class="name">${ss.name}</span>
+        <span class="info">${ss.cols}×${ss.rows} (${ss.frameW}×${ss.frameH}px)</span>
+        <button class="del-btn" onclick="event.stopPropagation();removeSpriteSheet(${ss.id})">✕</button>
+      </div>
+      <div class="sprite-card-body">
+        <img src="${ss.path}" class="sprite-preview" onclick="selectAnimSheet(${ss.id})">
+        <div style="font-size:8px;color:var(--dim);margin-top:4px">${ss.cols*ss.rows} frames • Click image to preview animation</div>
+      </div>`;
+    el.appendChild(card);
+  }
+}
+
+function removeSpriteSheet(id){
+  spriteSheets = spriteSheets.filter(s=>s.id!==id);
+  if(animSheet && animSheet.id===id) animSheet = spriteSheets[0]||null;
+  for(const layer of tileLayers){
+    layer.tiles = layer.tiles.filter(t=>t.sheetId!==id);
+  }
+  renderSpriteSheetList();
+  buildTilePalette();
+}
+
+function selectAnimSheet(id){
+  animSheet = spriteSheets.find(s=>s.id===id) || null;
+  animFrame = 0;
+}
+
+// ══════════════════════════════════════════
+// TILE PALETTE
+// ══════════════════════════════════════════
+function buildTilePalette(){
+  const wrap = document.getElementById('tilePaletteWrap');
+  wrap.innerHTML = '';
+  if(!spriteSheets.length){
+    wrap.innerHTML = '<div style="font-size:9px;color:var(--dim);padding:10px 8px">Import a spritesheet to see tiles here</div>';
+    return;
+  }
+
+  // Floating preview tooltip
+  let _tp = document.getElementById('_tilePreviewTip');
+  if(!_tp){
+    _tp = document.createElement('div');
+    _tp.id = '_tilePreviewTip';
+    _tp.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;display:none;background:#0a0f1c;border:1px solid #1e3060;border-radius:4px;padding:4px;';
+    document.body.appendChild(_tp);
+  }
+
+  for(const ss of spriteSheets){
+    const lbl = document.createElement('div');
+    lbl.className = 'tp-sheet-label';
+    lbl.style.cssText = 'font-size:8px;color:var(--amber);padding:4px 5px 2px;font-family:Orbitron,monospace;letter-spacing:1px;';
+    lbl.textContent = `${ss.name}  ·  ${ss.cols}×${ss.rows}  ·  ${ss.frameW}×${ss.frameH}px`;
+    wrap.appendChild(lbl);
+
+    const grid = document.createElement('div');
+    grid.id = ss.id === spriteSheets[0].id ? 'tilePalette' : `tilePalette_${ss.id}`;
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,52px);gap:2px;padding:4px';
+    for(let r=0;r<ss.rows;r++){
+      for(let c=0;c<ss.cols;c++){
+        const isSel = selectedTile && selectedTile.sheetId===ss.id && selectedTile.col===c && selectedTile.row===r;
+        const cell = document.createElement('div');
+        cell.style.cssText = `width:52px;height:52px;border:1px solid ${isSel?'var(--cyan)':'rgba(255,255,255,.07)'};border-radius:3px;cursor:pointer;image-rendering:pixelated;overflow:hidden;position:relative;${isSel?'box-shadow:0 0 0 1px rgba(0,245,255,.25) inset,0 0 10px rgba(0,245,255,.2);':''}`;
+        const cvs = document.createElement('canvas');
+        cvs.width = ss.frameW; cvs.height = ss.frameH;
+        cvs.style.cssText = 'width:100%;height:100%;image-rendering:pixelated;display:block';
+        const cx = cvs.getContext('2d');
+        cx.drawImage(ss.img, c*ss.frameW, r*ss.frameH, ss.frameW, ss.frameH, 0, 0, ss.frameW, ss.frameH);
+        cell.appendChild(cvs);
+        // coord label
+        const lbl2 = document.createElement('div');
+        lbl2.style.cssText = 'position:absolute;bottom:1px;right:2px;font-size:6px;color:rgba(255,255,255,.4);font-family:monospace;line-height:1;pointer-events:none;';
+        lbl2.textContent = `${c},${r}`;
+        cell.appendChild(lbl2);
+
+        cell.onmouseenter = ev => {
+          const previewSize = 96;
+          const pc = document.createElement('canvas');
+          pc.width = ss.frameW; pc.height = ss.frameH;
+          pc.style.cssText = `width:${previewSize}px;height:${previewSize}px;image-rendering:pixelated;display:block;`;
+          const px = pc.getContext('2d');
+          px.drawImage(ss.img, c*ss.frameW, r*ss.frameH, ss.frameW, ss.frameH, 0, 0, ss.frameW, ss.frameH);
+          _tp.innerHTML = '';
+          _tp.appendChild(pc);
+          const info = document.createElement('div');
+          info.style.cssText = 'font-size:8px;color:var(--cyan);font-family:monospace;padding-top:3px;text-align:center;';
+          info.textContent = `[${c}, ${r}]  frame ${r*ss.cols+c}`;
+          _tp.appendChild(info);
+          _tp.style.display = 'block';
+          _tp.style.left = (ev.clientX + 14) + 'px';
+          _tp.style.top  = (ev.clientY - 10) + 'px';
+        };
+        cell.onmousemove = ev => {
+          _tp.style.left = (ev.clientX + 14) + 'px';
+          _tp.style.top  = (ev.clientY - 10) + 'px';
+        };
+        cell.onmouseleave = () => { _tp.style.display = 'none'; };
+
+        cell.onclick = () => {
+          selectedTile = {sheetId:ss.id, sheetName:ss.name, col:c, row:r};
+          setTool('tile');
+          buildTilePalette();
+        };
+        grid.appendChild(cell);
+      }
+    }
+    wrap.appendChild(grid);
+  }
+  if(!document.getElementById('tilePalette')){
+    const p = document.createElement('div'); p.id='tilePalette'; p.style.display='none'; wrap.appendChild(p);
+  }
+}
+
+// ══════════════════════════════════════════
+// TILE PAINTING
+// ══════════════════════════════════════════
+function _paintTile(layer, wx, wy){
+  if(!selectedTile) return;
+  const gx = Math.floor(wx / tileSize) * tileSize;
+  const gy = Math.floor(wy / tileSize) * tileSize;
+  const idx = layer.tiles.findIndex(t=>t.x===gx&&t.y===gy);
+  const t = {x:gx,y:gy,sheetId:selectedTile.sheetId,col:selectedTile.col,row:selectedTile.row,
+             sheetName:selectedTile.sheetName,w:tileSize,h:tileSize};
+  if(idx>=0) layer.tiles[idx]=t; else layer.tiles.push(t);
+}
+function placeTileAtMouse(){
+  if(activeTileLayer==null || !selectedTile) return;
+  const layer = tileLayers.find(l=>l.id===activeTileLayer);
+  if(!layer) return;
+  if(brushSize===0){ fillLayer(layer); return; }
+  const cx = Math.floor(M.worldX / tileSize);
+  const cy = Math.floor(M.worldY / tileSize);
+  const half = Math.floor(brushSize/2);
+  for(let dy=-half; dy<brushSize-half; dy++)
+    for(let dx=-half; dx<brushSize-half; dx++)
+      _paintTile(layer, (cx+dx)*tileSize, (cy+dy)*tileSize);
+}
+function fillLayer(layer){
+  if(!selectedTile) return;
+  if(!confirm('Fill entire visible canvas area with this tile?')) return;
+  const cols = Math.ceil(mapW / tileSize);
+  const rows = Math.ceil(mapH / tileSize);
+  const newTiles = [];
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    newTiles.push({x:c*tileSize,y:r*tileSize,sheetId:selectedTile.sheetId,
+      col:selectedTile.col,row:selectedTile.row,sheetName:selectedTile.sheetName,w:tileSize,h:tileSize});
+  }
+  layer.tiles = newTiles;
+  showToast(`Filled ${newTiles.length} tiles`, 'ok');
+}
+function eraseTileAtMouse(){
+  if(activeTileLayer==null) return;
+  const layer = tileLayers.find(l=>l.id===activeTileLayer);
+  if(!layer) return;
+  const cx = Math.floor(M.worldX / tileSize);
+  const cy = Math.floor(M.worldY / tileSize);
+  const half = Math.floor(brushSize<=1?0:Math.floor(brushSize/2));
+  const b = Math.max(1,brushSize);
+  for(let dy=-half; dy<b-half; dy++)
+    for(let dx=-half; dx<b-half; dx++){
+      const gx=(cx+dx)*tileSize, gy=(cy+dy)*tileSize;
+      layer.tiles = layer.tiles.filter(t=>!(t.x===gx&&t.y===gy));
+    }
+}
+function setBrush(size){
+  brushSize = size;
+  [1,2,3,5,0].forEach(s=>{
+    const el=document.getElementById('brush'+s);
+    if(el) el.classList.toggle('active', s===size);
+  });
+}
+
+// ══════════════════════════════════════════
+// LAYERS
+// ══════════════════════════════════════════
+function addLayer(){
+  const layer = {id:nextId++, name:'Layer '+(tileLayers.length+1), visible:true, opacity:1, tiles:[]};
+  tileLayers.push(layer);
+  activeTileLayer = layer.id;
+  renderLayers();
+}
+function renderLayers(){
+  const el = document.getElementById('layerList');
+  if(!tileLayers.length){
+    el.innerHTML = '<div style="font-size:9px;color:var(--dim)">No tile layers yet. Add one to start painting.</div>';
+    return;
+  }
+  el.innerHTML = '';
+  const displayed = [...tileLayers].reverse();
+  displayed.forEach((l, di) => {
+    const realIdx = tileLayers.indexOf(l);
+    const canUp   = realIdx < tileLayers.length - 1;
+    const canDown = realIdx > 0;
+    const animBadge = l.animated ? `<span class="layer-anim" title="Animated">▶</span>` : '';
+    const row = document.createElement('div');
+    row.className = 'layer-row' + (l.id===activeTileLayer ? ' active' : '');
+    row.innerHTML = `
+      <span class="eye ${l.visible?'visible':''}" onclick="event.stopPropagation();toggleLayerVis(${l.id})" title="Toggle visibility">👁</span>
+      <span class="layer-name" id="lname_${l.id}" ondblclick="event.stopPropagation();startRenameLayer(${l.id})" title="Double-click to rename">${l.name}</span>
+      ${animBadge}
+      <span class="layer-count">${l.tiles.length}</span>
+      <button class="layer-move" onclick="event.stopPropagation();moveLayer(${l.id},1)" ${canUp?'':'disabled style="opacity:.2"'} title="Move up">▲</button>
+      <button class="layer-move" onclick="event.stopPropagation();moveLayer(${l.id},-1)" ${canDown?'':'disabled style="opacity:.2"'} title="Move down">▼</button>
+      <button class="del-btn" onclick="event.stopPropagation();removeLayer(${l.id})" title="Delete layer">✕</button>`;
+    row.onclick = () => { activeTileLayer=l.id; renderLayers(); updateLayerProps(); };
+    el.appendChild(row);
+  });
+  updateLayerProps();
+}
+function toggleLayerVis(id){
+  const l = tileLayers.find(ll=>ll.id===id);
+  if(l) l.visible = !l.visible;
+  renderLayers();
+}
+function removeLayer(id){
+  tileLayers = tileLayers.filter(l=>l.id!==id);
+  if(activeTileLayer===id) activeTileLayer = tileLayers.length ? tileLayers[tileLayers.length-1].id : null;
+  renderLayers();
+}
+function moveLayer(id, dir){
+  // dir +1 = move toward end of array (visually up), -1 = toward start (visually down)
+  const idx = tileLayers.findIndex(l=>l.id===id);
+  const newIdx = idx + dir;
+  if(newIdx<0 || newIdx>=tileLayers.length) return;
+  const tmp = tileLayers[idx]; tileLayers[idx]=tileLayers[newIdx]; tileLayers[newIdx]=tmp;
+  renderLayers();
+}
+function startRenameLayer(id){
+  const el = document.getElementById('lname_' + id);
+  if(!el) return;
+  const l = tileLayers.find(ll=>ll.id===id);
+  if(!l) return;
+  el.innerHTML = `<input type="text" value="${l.name}"
+    onblur="commitRenameLayer(${id},this.value)"
+    onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){renderLayers();}"
+    onclick="event.stopPropagation()" style="width:100%">`;
+  const inp = el.querySelector('input');
+  inp.focus(); inp.select();
+}
+function commitRenameLayer(id, name){
+  const l = tileLayers.find(ll=>ll.id===id);
+  if(l && name.trim()) { l.name=name.trim(); _markDirty(); }
+  renderLayers();
+}
+function updateLayerProps(){
+  const el = document.getElementById('layerProps');
+  const layer = tileLayers.find(l=>l.id===activeTileLayer);
+  if(!layer){el.innerHTML='<div style="font-size:9px;color:var(--dim)">No layer selected</div>';return;}
+  const layerId = layer.id;
+  el.innerHTML = `
+    <div class="prop-row"><label>NAME</label><input type="text" value="${layer.name}" onchange="tileLayers.find(l=>l.id===${layerId}).name=this.value;renderLayers()"></div>
+    <div class="prop-row"><label>OPACITY</label><input type="range" min="0" max="100" value="${Math.round(layer.opacity*100)}" oninput="tileLayers.find(l=>l.id===${layerId}).opacity=this.value/100;document.getElementById('opVal').textContent=this.value+'%'"><span class="val" id="opVal">${Math.round(layer.opacity*100)}%</span></div>
+    <div class="prop-row"><label>TILES</label><span style="color:var(--cyan);font-weight:700">${layer.tiles.length}</span><span style="color:var(--dim);font-size:8px;margin-left:4px">placed</span></div>
+    <div class="prop-row"><label>TILE SZ</label><input type="number" value="${tileSize}" min="16" max="128" step="8" onchange="tileSize=+this.value"><span style="color:var(--dim);font-size:8px">px</span></div>
+    <div class="toggle-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px">
+      <input type="checkbox" ${layer.animated?'checked':''} onchange="tileLayers.find(l=>l.id===${layerId}).animated=this.checked;updateLayerProps()" id="chkAnim_${layerId}">
+      <label for="chkAnim_${layerId}" style="font-family:'Orbitron',monospace;font-size:8px;letter-spacing:.5px;cursor:pointer">ANIMATED LAYER</label>
+    </div>
+    ${layer.animated ? `
+    <div class="layer-anim-card">
+      <div class="lac-title">🎬 ANIMATION SETTINGS</div>
+      <div class="lac-row">
+        <label>FPS</label>
+        <input type="number" min="1" max="60" value="${layer.fps||8}" onchange="tileLayers.find(l=>l.id===${layerId}).fps=+this.value" style="background:var(--bg);border:1px solid var(--border);color:var(--cyan);padding:3px 5px;font-size:9px;border-radius:3px;width:44px;font-family:'JetBrains Mono',monospace">
+        <span style="color:var(--dim);font-size:8px">frames/sec</span>
+      </div>
+      <div class="lac-row">
+        <label>FRAMES</label>
+        <input type="number" min="1" max="64" value="${layer.animFrameCount||4}" onchange="tileLayers.find(l=>l.id===${layerId}).animFrameCount=+this.value" style="background:var(--bg);border:1px solid var(--border);color:var(--amber);padding:3px 5px;font-size:9px;border-radius:3px;width:44px;font-family:'JetBrains Mono',monospace" title="Frames in one cycle">
+        <span style="color:var(--dim);font-size:8px">in cycle</span>
+      </div>
+      <div class="lac-row">
+        <label>DIRECTION</label>
+        <button class="btn btn-sm ${(layer.animDir||'h')==='h'?'btn-cyan':'btn-dim'}" onclick="tileLayers.find(l=>l.id===${layerId}).animDir='h';updateLayerProps()" title="Step right through columns">→ H</button>
+        <button class="btn btn-sm ${layer.animDir==='v'?'btn-cyan':'btn-dim'}" onclick="tileLayers.find(l=>l.id===${layerId}).animDir='v';updateLayerProps()" title="Step down through rows">↓ V</button>
+      </div>
+      <div class="toggle-row" style="margin-top:2px">
+        <input type="checkbox" ${layer.ripple?'checked':''} onchange="tileLayers.find(l=>l.id===${layerId}).ripple=this.checked" id="chkRipple_${layerId}" title="Offset each tile's frame by grid position for a wave effect">
+        <label for="chkRipple_${layerId}" style="cursor:pointer;font-size:8px">RIPPLE WAVE OFFSET</label>
+      </div>
+      <div class="toggle-row" style="margin-top:2px;padding-top:4px;border-top:1px dashed rgba(255,255,255,.06)">
+        <input type="checkbox" ${layer.animAbsolute?'checked':''} onchange="tileLayers.find(l=>l.id===${layerId}).animAbsolute=this.checked;updateLayerProps()" id="chkAbsAnim_${layerId}" title="Pin animation start to a fixed cell (for large mixed spritesheets)">
+        <label for="chkAbsAnim_${layerId}" style="cursor:pointer;font-size:8px;color:var(--amber)">FIXED START CELL</label>
+      </div>
+      ${layer.animAbsolute ? `
+      <div class="lac-sub">
+        <div class="lac-sub-title">PIN TO CELL IN SHEET</div>
+        <div style="font-size:7px;color:var(--dim);margin-bottom:5px;line-height:1.5">Plays <b style="color:var(--amber)">${layer.animFrameCount||4}</b> frames from this cell. Ignores per-tile col/row.</div>
+        <div class="lac-row">
+          <label>START COL</label>
+          <input type="number" min="0" max="999" value="${layer.animAbsCol||0}" onchange="tileLayers.find(l=>l.id===${layerId}).animAbsCol=+this.value" style="background:var(--bg);border:1px solid rgba(255,170,0,.3);color:var(--amber);padding:3px 5px;font-size:9px;border-radius:3px;width:44px;font-family:'JetBrains Mono',monospace">
+        </div>
+        <div class="lac-row">
+          <label>START ROW</label>
+          <input type="number" min="0" max="999" value="${layer.animAbsRow||0}" onchange="tileLayers.find(l=>l.id===${layerId}).animAbsRow=+this.value" style="background:var(--bg);border:1px solid rgba(255,170,0,.3);color:var(--amber);padding:3px 5px;font-size:9px;border-radius:3px;width:44px;font-family:'JetBrains Mono',monospace">
+        </div>
+      </div>` : ''}
+    </div>` : ''}
+    <button class="btn btn-red btn-sm btn-full" onclick="if(confirm('Clear all tiles on this layer?')){tileLayers.find(l=>l.id===${layerId}).tiles=[];renderLayers();updateLayerProps()}" style="margin-top:6px">🗑 CLEAR LAYER TILES</button>`;
+}
+renderLayers();
+
+// ══════════════════════════════════════════
+// ANIMATION PREVIEW
+// ══════════════════════════════════════════
+function animToggle(){ animPlaying = !animPlaying; }
+function animPrev(){ animFrame = Math.max(0, animFrame - 1); }
+function animNext(){ if(animSheet) animFrame = (animFrame + 1) % (animSheet.cols * animSheet.rows); }
+
+function updateAnimPreview(){
+  const cvs = animCanvas;
+  const w = cvs.parentElement.clientWidth, h = cvs.parentElement.clientHeight;
+  if(cvs.width!==w||cvs.height!==h){cvs.width=w;cvs.height=h;}
+  animCtx.clearRect(0,0,w,h);
+  animCtx.fillStyle = '#080c18';
+  animCtx.fillRect(0,0,w,h);
+
+  // ── Entity state mode — resolve sheet fresh from assignment ──
+  if(animEntityKey) {
+    const assign = spriteAssignments[animEntityKey] || {};
+    // Pick sheet: per-state override first, then root
+    let sheetName = assign.sheetName || '';
+    const sv = (animEntityState && assign.states && assign.states[animEntityState]) ? assign.states[animEntityState] : null;
+    if(sv && sv.sheetName) sheetName = sv.sheetName;
+    const ss = sheetName ? spriteSheets.find(s=>s.name===sheetName) : null;
+
+    if(!ss || !ss.img) {
+      animCtx.fillStyle = '#3a5070';
+      animCtx.font = '9px "Orbitron",monospace';
+      animCtx.textAlign = 'center';
+      const msg = sheetName ? `Sheet not found: ${sheetName}` : 'No sheet assigned — select one in the dropdown';
+      animCtx.fillText(msg, w/2, h/2);
+      return;
+    }
+
+    let start = assign.startFrame || 0;
+    let end   = assign.endFrame   || 0;
+    let fps   = assign.fps        || 8;
+    if(sv) {
+      if(sv.startFrame !== undefined) start = sv.startFrame;
+      if(sv.endFrame   !== undefined) end   = sv.endFrame;
+      if(sv.fps        !== undefined) fps   = sv.fps;
+    }
+    const total = Math.max(1, end - start + 1);
+    const now = performance.now();
+    if(animPlaying && now - animLastT > 1000/fps){
+      animFrame = start + ((animFrame - start + 1) % total);
+      animLastT = now;
+    }
+    if(animFrame < start || animFrame > end) animFrame = start;
+    const col = animFrame % ss.cols;
+    const row = Math.floor(animFrame / ss.cols);
+    const scale = Math.min((w-16)/ss.frameW, (h-16)/ss.frameH, 6);
+    const dw = ss.frameW * scale, dh = ss.frameH * scale;
+    // Checkerboard
+    animCtx.fillStyle='#1a1a2e'; animCtx.fillRect((w-dw)/2-2,(h-dh)/2-2,dw+4,dh+4);
+    for(let cy2=0;cy2<Math.ceil(dh/8);cy2++) for(let cx2=0;cx2<Math.ceil(dw/8);cx2++){
+      if((cx2+cy2)%2===0){animCtx.fillStyle='rgba(255,255,255,.04)';animCtx.fillRect((w-dw)/2+cx2*8,(h-dh)/2+cy2*8,8,8);}
+    }
+    animCtx.drawImage(ss.img, col*ss.frameW, row*ss.frameH, ss.frameW, ss.frameH, (w-dw)/2, (h-dh)/2, dw, dh);
+    animCtx.fillStyle='#c0d8f0'; animCtx.font='9px "JetBrains Mono",monospace';
+    animCtx.textAlign='left';
+    animCtx.fillText(`#${animFrame} [${col},${row}]  ${start}→${end}`, 4, h-4);
+    animCtx.textAlign='right';
+    animCtx.fillText(`${fps}fps`, w-4, h-4);
+    const fi = document.getElementById('animEntityFrameInfo');
+    if(fi) fi.textContent = `${start}→${end} · ${fps}fps`;
+    return;
+  }
+
+  // ── Raw sheet mode ──
+  if(!animSheet || !animSheet.img) {
+    animCtx.fillStyle = '#3a5070';
+    animCtx.font = '10px "Orbitron",monospace';
+    animCtx.textAlign = 'center';
+    animCtx.fillText('Import a spritesheet to preview',w/2,h/2);
+    return;
+  }
+  const now2 = performance.now();
+  if(animPlaying && now2 - animLastT > 1000/animFps){
+    animFrame = (animFrame+1) % (animSheet.cols * animSheet.rows);
+    animLastT = now2;
+  }
+  const col2 = animFrame % animSheet.cols;
+  const row2 = Math.floor(animFrame / animSheet.cols);
+  const ss2 = animSheet;
+  const scale2 = Math.min((w-16)/ss2.frameW, (h-16)/ss2.frameH, 4);
+  const dw2 = ss2.frameW * scale2, dh2 = ss2.frameH * scale2;
+  animCtx.fillStyle='#1a1a2e'; animCtx.fillRect((w-dw2)/2-2,(h-dh2)/2-2,dw2+4,dh2+4);
+  animCtx.drawImage(ss2.img, col2*ss2.frameW, row2*ss2.frameH, ss2.frameW, ss2.frameH, (w-dw2)/2, (h-dh2)/2, dw2, dh2);
+  animCtx.fillStyle='#c0d8f0'; animCtx.font='9px "JetBrains Mono",monospace';
+  animCtx.textAlign='left'; animCtx.fillText(`Frame ${animFrame+1}/${ss2.cols*ss2.rows} [${col2},${row2}]`,4,h-4);
+  animCtx.textAlign='right'; animCtx.fillText(`${animFps} FPS`,w-4,h-4);
+}
+
+function previewEntityAnim(key) {
+  animEntityKey = key;
+  animEntityState = 'idle';
+  const assign = spriteAssignments[key] || {};
+  const ss = spriteSheets.find(s => s.name === assign.sheetName);
+  if(ss) animSheet = ss;
+  animFrame = assign.startFrame || 0;
+  animLastT = 0;
+  animPlaying = true;
+  const stateList = key.startsWith('class_') ? CLASS_STATES : key.startsWith('mob_') ? MOB_STATES : null;
+  _refreshEntityBar(key, stateList);
+  // Scroll animation preview into view
+  const bar = document.getElementById('animEntityBar');
+  if(bar) bar.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function setEntityPreviewState(key, state) {
+  animEntityState = state;
+  const assign = spriteAssignments[key] || {};
+  let start = assign.startFrame || 0;
+  if(assign.states && assign.states[state] && assign.states[state].startFrame !== undefined)
+    start = assign.states[state].startFrame;
+  animFrame = start;
+  animLastT = 0;
+  const stateList = key.startsWith('class_') ? CLASS_STATES : key.startsWith('mob_') ? MOB_STATES : null;
+  _refreshEntityBar(key, stateList);
+}
+
+function clearEntityPreview() {
+  animEntityKey = null;
+  animEntityState = 'idle';
+  animFrame = 0;
+  document.getElementById('animEntityBar').style.display = 'none';
+}
+
+function _refreshEntityBar(key, stateList) {
+  const bar   = document.getElementById('animEntityBar');
+  const label = document.getElementById('animEntityLabel');
+  const div   = document.getElementById('animEntityStates');
+  if(!key || !stateList){ bar.style.display='none'; return; }
+  bar.style.display = 'block';
+  const parts = key.split('_');
+  label.textContent = (parts[0].toUpperCase()) + ' · ' + (parts[1]||'').toUpperCase();
+  div.innerHTML = stateList.map(st => {
+    const active = st === animEntityState;
+    return `<button class="anim-state-pill ${active?'active':''}" onclick="setEntityPreviewState('${key}','${st}')">${st.toUpperCase()}</button>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+// SOUNDS (FILE-BASED)
+// ══════════════════════════════════════════
+function importSound(){ document.getElementById('soundInput').click(); }
+
+async function handleSoundImport(e) {
+  const file = e.target.files[0]; 
+  if(!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const soundPath = await uploadSoundToServer(ev.target.result, file.name);
+    
+    sounds.push({
+      name: file.name, 
+      path: soundPath,
+      id: nextId++
+    });
+    renderSoundList();
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function renderSoundList(){
+  const el = document.getElementById('soundList');
+  if(!sounds.length){
+    el.innerHTML = '<div style="font-size:9px;color:var(--dim)">No sounds imported</div>';
+    return;
+  }
+  el.innerHTML = sounds.map(s => `
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;padding:2px 4px;border:1px solid var(--border);border-radius:var(--radius)">
+      <span style="cursor:pointer" onclick="new Audio('${s.path}').play().catch(()=>{})">▶</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px">${s.name}</span>
+      <button class="del-btn" onclick="sounds=sounds.filter(ss=>ss.id!==${s.id});renderSoundList()">✕</button>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════
+// MAP SIZE
+// ══════════════════════════════════════════
+function applyMapSize(){
+  mapW = parseInt(document.getElementById('mapW').value)||9600;
+  mapH = parseInt(document.getElementById('mapH').value)||5400;
+  shopZone.x = Math.min(shopZone.x, mapW - shopZone.w);
+  shopZone.y = Math.min(shopZone.y, mapH - shopZone.h);
+}
+
+// ══════════════════════════════════════════
+// VALIDATION
+// ══════════════════════════════════════════
+function validateMap(){
+  const msgs=[];
+  const bs=spawns.filter(s=>s.team===1).length, rs=spawns.filter(s=>s.team===2).length;
+  if(bs===0&&rs===0) msgs.push({type:'warn',text:'No spawns — defaults used for solo test'});
+  else{
+    if(bs<1) msgs.push({type:'warn',text:`Blue needs ≥1 spawn (has ${bs})`});
+    if(rs<1) msgs.push({type:'warn',text:`Red needs ≥1 spawn (has ${rs})`});
+  }
+  if(!camps.length) msgs.push({type:'warn',text:'No mob camps placed'});
+  for(const s of spawns){for(const w of walls){if(s.x>w.x&&s.x<w.x+w.w&&s.y>w.y&&s.y<w.y+w.h){msgs.push({type:'error',text:`${s.team===1?'Blue':'Red'} spawn inside wall!`});break;}}}
+  for(const t of towers){for(const w of walls){if(t.x+t.radius>w.x&&t.x-t.radius<w.x+w.w&&t.y+t.radius>w.y&&t.y-t.radius<w.y+w.h){msgs.push({type:'error',text:`${t.team===1?'Blue':'Red'} tower overlaps wall!`});break;}}}
+  if(!msgs.length) msgs.push({type:'ok',text:'Map looks good! ✓'});
+  document.getElementById('validationArea').innerHTML = msgs.map(m=>`<div class="validation-msg ${m.type}">${m.text}</div>`).join('');
+  return msgs.every(m=>m.type!=='error');
+}
+
+// ══════════════════════════════════════════
+// EXPORT / IMPORT / SAVE / LOAD (FILE-BASED)
+// ══════════════════════════════════════════
+function getMapJSON(){
+  const data = {
+    version:5, mapW, mapH,
+    walls: walls.map(w=>({x:w.x,y:w.y,w:w.w,h:w.h})),
+    camps: camps.map(c=>({x:c.x,y:c.y,type:c.type,count:c.count,gold:c.gold,respawnTime:c.respawnTime})),
+    spawns: spawns.map(s=>({x:s.x,y:s.y,team:s.team})),
+    towers: towers.map(t=>({x:t.x,y:t.y,team:t.team,hp:t.hp,maxHp:t.maxHp,radius:t.radius,atkRange:t.atkRange,atkCd:t.atkCd,dmg:t.dmg})),
+    shopZone:{x:shopZone.x,y:shopZone.y,w:shopZone.w,h:shopZone.h},
+    tileLayers: tileLayers.map(l=>({
+      name:l.name, visible:l.visible, opacity:l.opacity,
+      animated: l.animated || false,
+      fps: l.fps || 8,
+      animFrameCount: l.animFrameCount || 4,
+      animDir: l.animDir || 'h',
+      ripple: l.ripple || false,
+      animAbsolute: l.animAbsolute || false,
+      animAbsCol: l.animAbsCol || 0,
+      animAbsRow: l.animAbsRow || 0,
+      tiles: l.tiles.map(t=>{
+        const ss = spriteSheets.find(s=>s.id===t.sheetId);
+        return {...t, sheetName: ss ? ss.name : null};
+      })
+    })),
+    spriteSheets: spriteSheets.map(s=>({
+      name:s.name,
+      path: s.path,
+      cols:s.cols,
+      rows:s.rows
+    })),
+  };
+  if(sounds.length) data.sounds = sounds.map(s=>({name:s.name, path: s.path}));
+  return data;
+}
+
+function exportMap(){
+  validateMap();
+  const json = JSON.stringify(getMapJSON(), null, 2);
+  navigator.clipboard.writeText(json).then(()=>alert('Map JSON copied!')).catch(()=>{showImport();document.getElementById('importData').value=json;});
+}
+function showImport(){ document.getElementById('importModal').classList.remove('hidden'); }
+function hideImport(){ document.getElementById('importModal').classList.add('hidden'); }
+function doImport(){
+  try{loadMapData(JSON.parse(document.getElementById('importData').value));hideImport();}
+  catch(e){alert('Invalid JSON: '+e.message);}
+}
+
+async function loadMapData(data) {
+  if(data.mapW){mapW=data.mapW;document.getElementById('mapW').value=mapW;}
+  if(data.mapH){mapH=data.mapH;document.getElementById('mapH').value=mapH;}
+  walls=(data.walls||[]).map(w=>({...w,id:nextId++}));
+  camps=(data.camps||[]).map(c=>({...c,id:nextId++}));
+  spawns=(data.spawns||[]).map(s=>({...s,id:nextId++}));
+  towers=(data.towers||[]).map(t=>({...TOWER_DEFAULT,...t,id:nextId++}));
+  if(data.shopZone) Object.assign(shopZone, data.shopZone);
+  
+  if(data.spriteSheets){
+    spriteSheets = [];
+    for(const sd of data.spriteSheets){
+      const img = new Image();
+      img.src = sd.path;
+      await new Promise((resolve) => {
+        img.onload = () => {
+          const ss = {
+            id: nextId++, 
+            name: sd.name, 
+            path: sd.path,
+            img: img, 
+            cols: sd.cols, 
+            rows: sd.rows, 
+            frameW: Math.floor(img.naturalWidth / sd.cols),
+            frameH: Math.floor(img.naturalHeight / sd.rows)
+          };
+          spriteSheets.push(ss);
+          resolve();
+        };
+        img.onerror = () => {
+          console.warn('[Editor] Could not load sprite:', sd.path);
+          resolve();
+        };
+      });
+    }
+    renderSpriteSheetList();
+    buildTilePalette();
+    if(spriteSheets.length < data.spriteSheets.length){
+      const missing = data.spriteSheets.length - spriteSheets.length;
+      console.warn(`[Editor] ${missing} sprite sheet(s) failed to load.`);
+    }
+  }
+  
+  if(data.tileLayers){
+    tileLayers = data.tileLayers.map(l=>({
+      ...l, id: nextId++,
+      tiles: (l.tiles||[]).map(t => {
+        // sheetId from a saved map refers to the old session's IDs — remap by name
+        const ss = spriteSheets.find(s => s.name === t.sheetName);
+        return { ...t, sheetId: ss ? ss.id : t.sheetId };
+      })
+    }));
+    activeTileLayer = tileLayers.length ? tileLayers[tileLayers.length-1].id : null;
+    renderLayers();
+    updateLayerProps();
+  }
+  
+  if(data.sounds){
+    sounds = data.sounds.map(s=>({...s,id:nextId++}));
+    renderSoundList();
+  }
+  
+  selected=null;
+  updateProps();
+}
+
+function clearMap(){
+  if(!confirm('Clear entire map?'))return; pushUndo();
+  walls=[];camps=[];spawns=[];towers=[];
+  shopZone={x:mapW*.47,y:mapH*.47,w:mapW*.06,h:mapH*.06,id:'shop'};
+  selected=null;updateProps();
+}
+
+function testMap(){
+  validateMap();
+  const data=getMapJSON();
+  if(!data.spawns.length) data.spawns=[{x:data.mapW*0.2,y:data.mapH*0.5,team:1},{x:data.mapW*0.8,y:data.mapH*0.5,team:2}];
+  if(!data.spawns.find(s=>s.team===1)) data.spawns.push({x:data.mapW*0.2,y:data.mapH*0.5,team:1});
+  if(!data.spawns.find(s=>s.team===2)) data.spawns.push({x:data.mapW*0.8,y:data.mapH*0.5,team:2});
+  localStorage.setItem('ra3_custom_map',JSON.stringify(data));
+  window.open('/game.html?customMap=1&soloTest=1','_blank');
+}
+
+function saveToFile(){
+  validateMap();
+  const json=JSON.stringify(getMapJSON(),null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='reflex_map_'+new Date().toISOString().slice(0,16).replace(/[:\-T]/g,'')+'.json';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  showToast('Map exported as JSON file', 'ok');
+  _markSaved();
+}
+function loadFromFile(){document.getElementById('fileInput').click();}
+function handleFileLoad(e){
+  const file=e.target.files[0];if(!file)return;
+  _loadFileRaw(file);
+  e.target.value='';
+}
+function _loadFileRaw(file){
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      loadMapData(data).then(()=>{
+        showToast(`Loaded: ${walls.length} walls · ${camps.length} camps · ${tileLayers.length} layers`, 'ok');
+        _markSaved();
+      });
+    }catch(err){ showToast('Load failed: '+err.message, 'err'); }
+  };
+  reader.readAsText(file);
+}
+
+// ══════════════════════════════════════════
+// SERVER SAVE / LOAD / DEPLOY
+// ══════════════════════════════════════════
+function saveToServer(){ document.getElementById('serverMapName').value = 'my_map'; document.getElementById('saveServerModal').classList.remove('hidden'); }
+
+async function confirmSaveToServer(){
+  const name = document.getElementById('serverMapName').value.replace(/[^a-zA-Z0-9_\-]/g,'');
+  if(!name){showToast('Enter a valid map name','warn');return;}
+  validateMap();
+  const data = getMapJSON();
+  data.name = name;
+  try{
+    const res = await fetch('/api/maps/'+name, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    const result = await res.json();
+    if(result.success){ showToast('Saved to server: '+name,'ok'); document.getElementById('saveServerModal').classList.add('hidden'); _markSaved(); }
+    else showToast('Save failed: '+(result.error||'unknown'),'err');
+  }catch(e){ showToast('Server error: '+e.message,'err'); }
+}
+
+// ── kept for backward compat (loadServerMap still used inside map manager) ──
+async function loadServerMap(name){
+  try{
+    const res = await fetch('/api/maps/'+name);
+    const data = await res.json();
+    if(data.error){ showToast(data.error,'err'); return; }
+    await loadMapData(data);
+    hideMapManager();
+    showToast('Loaded: '+name,'ok');
+  }catch(e){ showToast('Load failed: '+e.message,'err'); }
+}
+
+async function deleteServerMap(name){
+  if(!confirm('Delete map "'+name+'" from server?'))return;
+  try{
+    await fetch('/api/maps/'+name,{method:'DELETE'});
+    // clear any slot assignment pointing to this map
+    for(const k of Object.keys(mmSlots)){ if(mmSlots[k]===name) mmSlots[k]=null; }
+    await saveSlots();
+    await loadMapManagerData();
+  }catch(e){alert('Delete failed: '+e.message);}
+}
+
+// ════════════════════════════════════════════════
+// MAP MANAGER
+// ════════════════════════════════════════════════
+const MAP_MODES = [
+  { key:'multiplayer', label:'MULTIPLAYER',  desc:'Online 3v3 — goes live for new matches' },
+  { key:'offline',     label:'VS AI / 2v2',  desc:'Offline 1v1 AI + 2v2 team mode' },
+  { key:'3v3',         label:'3v3 OFFLINE',  desc:'Local 3v3 team mode' },
+  { key:'local2p',     label:'LOCAL 2P',     desc:'Split-screen 2-player' },
+  { key:'practice',    label:'PRACTICE',     desc:'Solo practice arena' },
+];
+let mmSlots  = {};   // { default: 'map_name', '2v2': null, ... }
+let mmMaps   = [];   // [{ name, walls, camps, spawns, savedAt }]
+let mmActive = 'default';
+let mmDragMap = null;
+
+async function showMapManager(){
+  document.getElementById('mapManagerModal').classList.remove('hidden');
+  await loadMapManagerData();
+}
+function hideMapManager(){
+  document.getElementById('mapManagerModal').classList.add('hidden');
+}
+
+async function loadMapManagerData(){
+  document.getElementById('mmStatus').textContent = 'Loading…';
+  try{
+    const [mapsRes, slotsRes] = await Promise.all([
+      fetch('/api/maps'),
+      fetch('/api/map-slots')   // now returns { mode: 'filename' | null } from folder scan
+    ]);
+    mmMaps  = (await mapsRes.json()).filter(m => !m.name.startsWith('_'));
+    mmSlots = await slotsRes.json();
+    renderMmSlots();
+    renderMmMaps();
+    document.getElementById('mmStatus').textContent = 'Drag a map onto a mode, or use Deploy ▶';
+  }catch(e){
+    document.getElementById('mmStatus').textContent = 'Error: '+e.message;
+  }
+}
+
+function renderMmSlots(){
+  const el = document.getElementById('mmSlotList');
+  el.innerHTML = MAP_MODES.map(mode => {
+    const active = mmSlots[mode.key] || null;
+    return `<div class="slot-card ${active?'slot-active':''}"
+      id="slot-${mode.key}"
+      ondragover="event.preventDefault();this.classList.add('dragover')"
+      ondragleave="this.classList.remove('dragover')"
+      ondrop="slotDrop(event,'${mode.key}')">
+      <div>
+        <div style="font-family:'Orbitron',monospace;font-size:9px;letter-spacing:1px;color:${active?'#00ff88':'var(--text)'}">${mode.label}</div>
+        <div style="font-size:7px;color:var(--dim);margin-top:1px">${mode.desc}</div>
+      </div>
+      <div style="margin-top:6px;padding:4px 6px;border-radius:3px;background:rgba(0,0,0,.35);font-size:8px;min-height:20px;display:flex;align-items:center;justify-content:space-between;gap:6px">
+        ${active
+          ? `<span style="color:var(--cyan)">📄 ${active}</span>
+             <span style="font-size:7px;color:var(--green)">✓ live</span>`
+          : `<span style="color:var(--dim);font-size:7px">empty — drop a map or use Deploy</span>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderMmMaps(){
+  const el = document.getElementById('mmMapList');
+  if(!mmMaps.length){
+    el.innerHTML='<div style="font-size:9px;color:var(--dim);text-align:center;padding:20px">No saved maps yet.<br>Use ☁ SERVER SAVE first.</div>';
+    return;
+  }
+  const modeOpts = MAP_MODES.map(m=>`<option value="${m.key}">${m.label}</option>`).join('');
+  el.innerHTML = mmMaps.map(m=>`
+    <div class="mm-map-card" draggable="true" ondragstart="mmDragStart(event,'${m.name}')">
+      <div style="font-family:'Orbitron',monospace;font-size:9px;color:var(--cyan)">${m.name}</div>
+      <div style="font-size:7px;color:var(--dim)">${m.walls||0}w · ${m.camps||0}c · ${m.spawns||0}s${m.savedAt?' · '+new Date(m.savedAt).toLocaleDateString():''}</div>
+      <div style="display:flex;gap:3px;margin-top:5px;flex-wrap:wrap">
+        <button class="btn btn-amber btn-sm" style="font-size:7px;flex:1" onclick="loadServerMap('${m.name}')">LOAD</button>
+        <select id="deploySelect_${m.name}" style="flex:1;min-width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:7px;padding:2px 3px">${modeOpts}</select>
+        <button class="btn btn-green btn-sm" style="font-size:7px;white-space:nowrap" onclick="deployToMode('${m.name}',document.getElementById('deploySelect_${m.name}').value)">DEPLOY ▶</button>
+        <button class="btn btn-red btn-sm" style="font-size:7px" onclick="deleteServerMap('${m.name}')">DEL</button>
+      </div>
+    </div>`).join('');
+}
+
+function mmDragStart(event, name){
+  mmDragMap = name;
+  event.dataTransfer.setData('text/plain', name);
+  event.dataTransfer.effectAllowed = 'copy';
+}
+
+function slotDrop(event, modeKey){
+  event.preventDefault();
+  const name = event.dataTransfer.getData('text/plain') || mmDragMap;
+  document.getElementById('slot-'+modeKey)?.classList.remove('dragover');
+  if(name) deployToMode(name, modeKey);
+}
+
+async function deployToMode(mapName, modeKey){
+  if(!mapName || !modeKey) return;
+  const statusEl = document.getElementById('mmStatus');
+  statusEl.textContent = `Deploying "${mapName}" → ${modeKey}…`;
+  try{
+    const res = await fetch('/api/map-for-mode/'+modeKey, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name: mapName})
+    });
+    const r = await res.json();
+    if(r.success){
+      mmSlots[modeKey] = mapName;
+      renderMmSlots();
+      statusEl.textContent = `✓ "${mapName}" is now live for ${modeKey}`;
+    } else {
+      statusEl.textContent = 'Error: '+(r.error||'unknown');
+    }
+  }catch(e){
+    statusEl.textContent = 'Server error: '+e.message;
+  }
+}
+
+// Check server status on load
+(async function checkServer(){
+  try{
+    const res = await fetch('/api/server-status');
+    const s = await res.json();
+    document.getElementById('serverStatus').innerHTML=`<span style="color:var(--green)">● Server online</span> — ${s.players} players, ${s.matches} matches, map: ${s.activeMap}`;
+  }catch(e){document.getElementById('serverStatus').innerHTML='<span style="color:var(--red)">● Server offline</span>';}
+})();
+
+// Load global sprite assignments on startup
+(async function loadGlobalAssignments(){
+  try{
+    // Load saved spritesheets first so assignment dropdowns can populate
+    const sheetRes = await fetch('/api/sprite-sheets');
+    const sheetData = await sheetRes.json();
+    if(Array.isArray(sheetData) && sheetData.length){
+      await new Promise(resolve=>{
+        let loaded = 0;
+        const done = ()=>{ if(++loaded === sheetData.length) resolve(); };
+        for(const sd of sheetData){
+          const img = new Image();
+          img.onload = ()=>{
+            const fw = Math.floor(img.naturalWidth / sd.cols);
+            const fh = Math.floor(img.naturalHeight / sd.rows);
+            spriteSheets.push({ id: nextId++, name: sd.name, path: sd.path, img, cols: sd.cols, rows: sd.rows, frameW: fw, frameH: fh });
+            done();
+          };
+          img.onerror = done;
+          img.src = sd.path;
+        }
+      });
+      if(!animSheet && spriteSheets.length) animSheet = spriteSheets[0];
+      renderSpriteSheetList();
+      buildTilePalette();
+    }
+  }catch(e){}
+  try{
+    const res = await fetch('/api/sprite-assignments');
+    const data = await res.json();
+    if(data && Object.keys(data).length) {
+      spriteAssignments = data;
+      buildSpriteAssignUI();
+    }
+  }catch(e){}
+})();
+
+async function saveGlobalAssignments(){
+  const el = document.getElementById('assignSaveStatus');
+  try{
+    // Build sheet metadata — merge existing _sheets.json with current session sheets
+    // so we never accidentally wipe sheets that loaded at startup but weren't re-added
+    let existingSheets = [];
+    try { existingSheets = await fetch('/api/sprite-sheets').then(r=>r.json()); } catch(e) {}
+    if (!Array.isArray(existingSheets)) existingSheets = [];
+    const currentMeta = spriteSheets.map(s=>({ name: s.name, path: s.path, cols: s.cols, rows: s.rows }));
+    // Merge: current session sheets override existing by name; keep any others
+    const merged = [...currentMeta];
+    for (const ex of existingSheets) {
+      if (!merged.find(m => m.name === ex.name)) merged.push(ex);
+    }
+    await fetch('/api/sprite-sheets', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(merged)
+    });
+    const res = await fetch('/api/sprite-assignments', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(spriteAssignments)
+    });
+    const result = await res.json();
+    if(result.success){ showToast('Sprite assignments saved', 'ok'); if(el) el.innerHTML=''; }
+    else { showToast('Save error: '+(result.error||'unknown'), 'err'); }
+  }catch(e){
+    showToast('Server error: '+e.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════════
+// SPRITE ASSIGNMENTS
+// ══════════════════════════════════════════
+const MOB_TYPES = ['wraith','golem','dragon','sentinel','berserker','lich','spider','vampire','hydra','shaman','phoenix','minotaur','banshee','infernal'];
+const CLASS_TYPES = ['gunner','assassin','mage','tank','necro','ranger'];
+const VFX_TYPES = ['bullet','explosion','dash','hook','nova','barrier','sword','snipe','smoke','heal'];
+
+// Built-in MOBA animation presets — 4-directional row-based layout
+// Sheet convention: 8 cols wide. State rows ordered down/left/right/up.
+const ENTITY_ANIM_PRESETS = {
+  class_gunner:   { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:4,fps:6,directional:true},  walk:{rowStart:4,frameCount:6,fps:10,directional:true}, attack:{rowStart:8,frameCount:5,fps:12,directional:true}, special:{rowStart:12,frameCount:6,fps:8,directional:true},  dead:{rowStart:16,frameCount:6,fps:6,directional:false} }},
+  class_assassin: { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:4,fps:6,directional:true},  walk:{rowStart:4,frameCount:6,fps:12,directional:true}, attack:{rowStart:8,frameCount:5,fps:16,directional:true}, special:{rowStart:12,frameCount:8,fps:14,directional:true}, dead:{rowStart:16,frameCount:5,fps:6,directional:false} }},
+  class_mage:     { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:6,fps:5,directional:true},  walk:{rowStart:4,frameCount:4,fps:6,directional:true},  attack:{rowStart:8,frameCount:6,fps:10,directional:true}, special:{rowStart:12,frameCount:10,fps:12,directional:true},dead:{rowStart:16,frameCount:7,fps:5,directional:false} }},
+  class_tank:     { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:4,fps:5,directional:true},  walk:{rowStart:4,frameCount:6,fps:7,directional:true},  attack:{rowStart:8,frameCount:5,fps:8,directional:true},  special:{rowStart:12,frameCount:8,fps:8,directional:true},  dead:{rowStart:16,frameCount:6,fps:5,directional:false} }},
+  class_necro:    { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:6,fps:6,directional:true},  walk:{rowStart:4,frameCount:4,fps:7,directional:true},  attack:{rowStart:8,frameCount:6,fps:9,directional:true},  special:{rowStart:12,frameCount:10,fps:10,directional:true},dead:{rowStart:16,frameCount:8,fps:5,directional:false} }},
+  class_ranger:   { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:4,fps:6,directional:true},  walk:{rowStart:4,frameCount:6,fps:10,directional:true}, attack:{rowStart:8,frameCount:8,fps:14,directional:true}, special:{rowStart:12,frameCount:6,fps:12,directional:true}, dead:{rowStart:16,frameCount:5,fps:6,directional:false} }},
+  mob_wolves:     { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:4,fps:6,directional:true},  walk:{rowStart:4,frameCount:6,fps:12,directional:true}, attack:{rowStart:8,frameCount:5,fps:14,directional:true}, dead:{rowStart:12,frameCount:5,fps:6,directional:false} }},
+  mob_golem:      { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:3,fps:4,directional:true},  walk:{rowStart:4,frameCount:6,fps:6,directional:true},  attack:{rowStart:8,frameCount:5,fps:6,directional:true},  dead:{rowStart:12,frameCount:8,fps:5,directional:false} }},
+  mob_wraith:     { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:6,fps:8,directional:true},  walk:{rowStart:4,frameCount:4,fps:8,directional:true},  attack:{rowStart:8,frameCount:5,fps:10,directional:true}, dead:{rowStart:12,frameCount:8,fps:6,directional:false} }},
+  mob_dragon:     { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:6,fps:6,directional:true},  walk:{rowStart:4,frameCount:6,fps:8,directional:true},  attack:{rowStart:8,frameCount:8,fps:8,directional:true},  dead:{rowStart:12,frameCount:8,fps:5,directional:false} }},
+  mob_sentinel:   { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:5,fps:6,directional:true},  walk:{rowStart:4,frameCount:6,fps:8,directional:true},  attack:{rowStart:8,frameCount:6,fps:10,directional:true}, dead:{rowStart:12,frameCount:7,fps:5,directional:false} }},
+  mob_berserker:  { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:4,fps:7,directional:true},  walk:{rowStart:4,frameCount:6,fps:12,directional:true}, attack:{rowStart:8,frameCount:5,fps:16,directional:true}, dead:{rowStart:12,frameCount:6,fps:6,directional:false} }},
+  mob_lich:       { dirMode:'4way', states:{ idle:{rowStart:0,frameCount:8,fps:6,directional:true},  walk:{rowStart:4,frameCount:4,fps:5,directional:true},  attack:{rowStart:8,frameCount:7,fps:9,directional:true},  dead:{rowStart:12,frameCount:9,fps:5,directional:false} }},
+};
+
+const CLASS_STATES = ['idle','walk','attack','special','dead'];
+const MOB_STATES   = ['idle','walk','attack','dead'];
+
+function buildSpriteAssignUI(){
+  buildAssignSection('mobSpriteAssign', MOB_TYPES, 'mob_');
+  buildAssignSection('classSpriteAssign', CLASS_TYPES, 'class_');
+  buildAssignSection('vfxSpriteAssign', VFX_TYPES, 'vfx_');
+}
+
+function buildAssignSection(containerId, types, prefix){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  if(!spriteSheets.length){
+    el.innerHTML='<div style="font-size:8px;color:var(--dim);padding:4px 0">Import spritesheets first</div>';
+    return;
+  }
+  const stateList = prefix==='class_' ? CLASS_STATES : prefix==='mob_' ? MOB_STATES : null;
+  el.innerHTML = types.map(t => {
+    const key = prefix + t;
+    const assign = spriteAssignments[key] || {};
+    const hasStates = !!(assign.states);
+    const sheetLabel = assign.sheetName || '';
+    const sheetBadgeClass = sheetLabel ? 'ac-sheet-badge has-sheet' : 'ac-sheet-badge';
+    const sheetOpts = '<option value="">— none —</option>' + spriteSheets.map(s=>`<option value="${s.name}" ${assign.sheetName===s.name?'selected':''}>${s.name}</option>`).join('');
+    // Base frame/fps row (shown when no per-state mode)
+    const baseFrameRow = !hasStates ? `
+      <div class="ac-row">
+        <label>FRAMES</label>
+        <input class="ac-num" type="number" min="0" max="9999" value="${assign.startFrame||0}" title="Start frame" onchange="setSpriteAssign('${key}','startFrame',+this.value)">
+        <span class="ac-sep">→</span>
+        <input class="ac-num" type="number" min="0" max="9999" value="${assign.endFrame||0}" title="End frame" onchange="setSpriteAssign('${key}','endFrame',+this.value)">
+        <input class="ac-num ac-fps" type="number" min="1" max="60" value="${assign.fps||8}" title="FPS" onchange="setSpriteAssign('${key}','fps',+this.value)" style="width:28px">
+        <span style="font-size:7px;color:var(--dim)">fps</span>
+      </div>` : '';
+    // Direction mode row (only for mob/class)
+    const dirModeRow = stateList ? `
+      <div class="ac-row" style="gap:4px;margin-bottom:2px">
+        <label style="min-width:32px">DIR</label>
+        <select style="font-size:8px;padding:1px 4px;background:var(--panel);color:var(--text);border:1px solid var(--border);flex:1" title="Direction mode: sprite rows per facing direction" onchange="setSpriteAssign('${key}','dirMode',this.value)">
+          <option value="" ${!assign.dirMode?'selected':''}>None (no direction)</option>
+          <option value="4way" ${assign.dirMode==='4way'?'selected':''}>4-way (↓ ← → ↑)</option>
+          <option value="8way" ${assign.dirMode==='8way'?'selected':''}>8-way</option>
+        </select>
+        ${typeof ENTITY_ANIM_PRESETS!=='undefined'&&ENTITY_ANIM_PRESETS[key]?`<button onclick="loadAnimPreset('${key}')" title="Load built-in MOBA animation preset" style="font-family:'Orbitron',monospace;font-size:7px;padding:2px 7px;border:1px solid var(--amber);background:transparent;color:var(--amber);cursor:pointer;border-radius:3px;white-space:nowrap">★ PRESET</button>`:''}
+      </div>` : '';
+    // Per-state rows
+    const stateSheetBase = '<option value="">↑ root sheet</option>' + spriteSheets.map(s=>`<option value="${s.name}">${s.name}</option>`).join('');
+    const dirActive = assign.dirMode === '4way' || assign.dirMode === '8way';
+    const stateRows = (hasStates && stateList) ? `
+      <div class="state-rows">
+        <div style="display:grid;grid-template-columns:42px 1fr 28px 28px 24px${dirActive?' 26px 26px 18px':''};gap:2px;padding:0 0 3px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:3px">
+          <span style="font-family:'Orbitron',monospace;font-size:6px;color:var(--dim);letter-spacing:.5px">STATE</span>
+          <span style="font-family:'Orbitron',monospace;font-size:6px;color:var(--dim);letter-spacing:.5px">SHEET</span>
+          <span style="font-family:'Orbitron',monospace;font-size:6px;color:var(--dim);letter-spacing:.5px;text-align:center" title="Start frame (flat mode)">S</span>
+          <span style="font-family:'Orbitron',monospace;font-size:6px;color:var(--dim);letter-spacing:.5px;text-align:center" title="End frame (flat mode)">E</span>
+          <span style="font-family:'Orbitron',monospace;font-size:6px;color:var(--dim);letter-spacing:.5px;text-align:center">FPS</span>
+          ${dirActive?`
+          <span style="font-family:'Orbitron',monospace;font-size:6px;color:var(--amber);letter-spacing:.5px;text-align:center" title="Base row in sheet (row-based mode)">ROW</span>
+          <span style="font-family:'Orbitron',monospace;font-size:6px;color:var(--amber);letter-spacing:.5px;text-align:center" title="Frames per direction row">CNT</span>
+          <span style="font-family:'Orbitron',monospace;font-size:6px;color:var(--amber);letter-spacing:.5px;text-align:center" title="This state uses direction rows">DIR</span>`:''}
+        </div>
+        ${stateList.map(st => {
+          const sv = (assign.states&&assign.states[st])||{};
+          const stOpts = stateSheetBase.replace(`value="${sv.sheetName||''}"`,`value="${sv.sheetName||''}" selected`);
+          return `<div class="state-row" style="grid-template-columns:42px 1fr 28px 28px 24px${dirActive?' 26px 26px 18px':''}">
+            <span class="state-tag ${st}">${st}</span>
+            <select class="state-sheet-sel" title="Sheet override for this state" onchange="setSpriteAssignState('${key}','${st}','sheetName',this.value)">${stOpts}</select>
+            <input class="ac-num" type="number" min="0" max="9999" value="${sv.startFrame!==undefined?sv.startFrame:''}" placeholder="—" title="Start frame (flat mode)" onchange="setSpriteAssignState('${key}','${st}','startFrame',this.value===''?undefined:+this.value)" style="width:26px">
+            <input class="ac-num" type="number" min="0" max="9999" value="${sv.endFrame!==undefined?sv.endFrame:''}" placeholder="—" title="End frame (flat mode)" onchange="setSpriteAssignState('${key}','${st}','endFrame',this.value===''?undefined:+this.value)" style="width:26px">
+            <input class="ac-num ac-fps" type="number" min="1" max="60" value="${sv.fps||8}" title="FPS" onchange="setSpriteAssignState('${key}','${st}','fps',+this.value)" style="width:24px">
+            ${dirActive?`
+            <input class="ac-num" type="number" min="0" max="999" value="${sv.rowStart!==undefined?sv.rowStart:''}" placeholder="—" title="Base row (row-based mode)" onchange="setSpriteAssignState('${key}','${st}','rowStart',this.value===''?undefined:+this.value)" style="width:24px;color:var(--amber)">
+            <input class="ac-num" type="number" min="1" max="99"  value="${sv.frameCount!==undefined?sv.frameCount:''}" placeholder="—" title="Frames per row" onchange="setSpriteAssignState('${key}','${st}','frameCount',this.value===''?undefined:+this.value)" style="width:24px;color:var(--amber)">
+            <input type="checkbox" ${sv.directional?'checked':''} title="Use direction row offset for this state" onchange="setSpriteAssignState('${key}','${st}','directional',this.checked)" style="margin:0;accent-color:var(--amber)">`:''}
+          </div>`;
+        }).join('')}
+      </div>` : '';
+    // States toggle (only for mob/class)
+    const statesToggle = stateList ? `
+      <div class="states-toggle-row">
+        <input type="checkbox" ${hasStates?'checked':''} id="st_${key}" onchange="toggleSpriteStates('${key}',this.checked)">
+        <label for="st_${key}" style="cursor:pointer;font-family:'Orbitron',monospace;font-size:7px;letter-spacing:.5px">PER-STATE CLIPS</label>
+        <span style="flex:1"></span>
+        <button onclick="previewEntityAnim('${key}')" title="Preview in animation panel"
+          style="font-family:'Orbitron',monospace;font-size:7px;padding:2px 8px;border:1px solid var(--purple);background:transparent;color:var(--purple);cursor:pointer;border-radius:8px;letter-spacing:.5px">▶ PREVIEW</button>
+      </div>` : '';
+    return `<div class="assign-card" id="ac_${key}">
+      <div class="assign-card-head" onclick="this.closest('.assign-card').classList.toggle('open')">
+        <span class="ac-name">${t.toUpperCase()}</span>
+        <span class="${sheetBadgeClass}">${sheetLabel||'no sheet'}</span>
+        <span class="ac-expand">›</span>
+      </div>
+      <div class="assign-card-body">
+        <select class="ac-sheet-sel" onchange="setSpriteAssign('${key}','sheetName',this.value)">${sheetOpts}</select>
+        ${dirModeRow}${baseFrameRow}${statesToggle}${stateRows}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleSpriteStates(key, enable){
+  if(!spriteAssignments[key]) spriteAssignments[key]={};
+  if(enable){ if(!spriteAssignments[key].states) spriteAssignments[key].states={}; }
+  else { delete spriteAssignments[key].states; }
+  buildSpriteAssignUI();
+}
+
+function setSpriteAssignState(key, stateName, prop, value){
+  if(!spriteAssignments[key]) spriteAssignments[key]={};
+  if(!spriteAssignments[key].states) spriteAssignments[key].states={};
+  if(!spriteAssignments[key].states[stateName]) spriteAssignments[key].states[stateName]={};
+  spriteAssignments[key].states[stateName][prop]=value;
+  // If changing sheet for a state and previewing that entity+state, refresh preview sheet
+  if(prop==='sheetName' && animEntityKey===key && animEntityState===stateName){
+    const ss = value ? spriteSheets.find(s=>s.name===value) : null;
+    if(ss) animSheet=ss;
+  }
+  _scheduleAssignSave();
+}
+
+function setSpriteAssign(key, prop, value){
+  if(!spriteAssignments[key]) spriteAssignments[key] = {sheetName:'',startFrame:0,endFrame:0,fps:8};
+  spriteAssignments[key][prop] = value;
+  if(prop==='sheetName' && value){
+    const ss = spriteSheets.find(s=>s.name===value);
+    if(ss){ spriteAssignments[key].endFrame = ss.cols*ss.rows-1; animSheet=ss; animFrame=0; }
+  }
+  if(!spriteAssignments[key].sheetName) delete spriteAssignments[key];
+  _scheduleAssignSave();
+}
+
+// Load built-in animation preset (from ENTITY_ANIM_PRESETS in sprites.js)
+function loadAnimPreset(key) {
+  if (typeof ENTITY_ANIM_PRESETS === 'undefined') { alert('Presets not available — ensure sprites.js is loaded.'); return; }
+  const preset = ENTITY_ANIM_PRESETS[key];
+  if (!preset) { alert('No preset for ' + key); return; }
+  if (!spriteAssignments[key]) spriteAssignments[key] = { sheetName: '' };
+  // Apply dirMode and states — keep existing sheetName
+  spriteAssignments[key].dirMode = preset.dirMode || '';
+  spriteAssignments[key].states = JSON.parse(JSON.stringify(preset.states || {}));
+  _scheduleAssignSave();
+  buildSpriteAssignUI();
+  // Open the card so the user can see the result
+  const card = document.getElementById('ac_' + key);
+  if (card) card.classList.add('open');
+}
+
+// Rebuild sprite assign UI when sheets change
+const origRenderSSList = renderSpriteSheetList;
+renderSpriteSheetList = function(){ origRenderSSList(); buildSpriteAssignUI(); };
+
+// ══════════════════════════════════════════
+// SPRITE BROWSER (LOAD FROM SERVER)
+// ══════════════════════════════════════════
+let sbAllSprites = [];        // [{filename, category, url}]
+let sbSelectedFile = null;
+let sbSelectedUrl  = null;
+let sbSelectedImg  = null;
+let sbCurrentCategory = 'all';
+
+async function showSpriteBrowser(){
+  document.getElementById('spriteBrowserModal').classList.remove('hidden');
+  sbSelectedFile = null; sbSelectedUrl = null; sbSelectedImg = null;
+  document.getElementById('sbConfigArea').classList.remove('visible');
+  document.getElementById('sbAddBtn').disabled = true;
+  document.getElementById('sbSearch').value = '';
+  sbCurrentCategory = 'all';
+  setSbCategory('all');
+  await loadSpriteBrowserList();
+}
+
+function hideSpriteBrowser(){
+  document.getElementById('spriteBrowserModal').classList.add('hidden');
+}
+
+async function loadSpriteBrowserList(){
+  const grid = document.getElementById('spriteBrowserGrid');
+  grid.innerHTML = '<div style="font-size:10px;color:var(--dim);text-align:center;padding:30px">Loading...</div>';
+  try{
+    const res = await fetch('/api/sprites');
+    sbAllSprites = await res.json(); // [{filename, category, url}]
+    document.getElementById('sbCount').textContent = sbAllSprites.length + ' sprites';
+    filterSpriteBrowser(document.getElementById('sbSearch').value);
+  } catch(e){
+    grid.innerHTML = '<div style="color:var(--red);text-align:center;padding:20px">Failed to load: '+e.message+'</div>';
+  }
+}
+
+function setSbCategory(cat){
+  sbCurrentCategory = cat;
+  document.querySelectorAll('#sbCatTabs .btn').forEach(b => {
+    const match = b.textContent.toLowerCase() === cat || (cat==='all' && b.textContent==='ALL');
+    b.className = 'btn btn-sm ' + (match ? 'btn-cyan' : 'btn-dim');
+  });
+  filterSpriteBrowser(document.getElementById('sbSearch').value);
+}
+
+function filterSpriteBrowser(query){
+  const q = query.toLowerCase();
+  let filtered = sbAllSprites;
+  if(sbCurrentCategory !== 'all') filtered = filtered.filter(s => s.category === sbCurrentCategory);
+  if(q) filtered = filtered.filter(s => s.filename.toLowerCase().includes(q));
+  renderSpriteBrowserGrid(filtered);
+}
+
+const CAT_COLORS = { tilesets:'#00f5ff', players:'#00ff88', mobs:'#ff5555', vfx:'#ffaa00', ui:'#aa88ff', misc:'#888' };
+
+function renderSpriteBrowserGrid(sprites){
+  const grid = document.getElementById('spriteBrowserGrid');
+  if(!sprites.length){
+    grid.innerHTML = '<div style="font-size:10px;color:var(--dim);text-align:center;padding:30px">No sprites found. Upload one first!</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  for(const s of sprites){
+    const card = document.createElement('div');
+    card.className = 'sb-card' + (sbSelectedFile === s.filename && sbSelectedUrl === s.url ? ' selected' : '');
+    const catColor = CAT_COLORS[s.category] || '#888';
+    card.innerHTML = `<img src="${s.url}?t=${Date.now()}" loading="lazy">
+      <div class="sb-name" title="${s.filename}">${s.filename.replace(/_\d+(\.\w+)$/, '$1')}</div>
+      <div style="font-size:6px;color:${catColor};opacity:.85;margin-top:1px">${s.category||'misc'}</div>`;
+    card.onclick = () => selectSbSprite(s.filename, s.url, card);
+    grid.appendChild(card);
+  }
+}
+
+function selectSbSprite(filename, url, cardEl){
+  sbSelectedFile = filename;
+  sbSelectedUrl  = url;
+  document.querySelectorAll('.sb-card').forEach(c => c.classList.remove('selected'));
+  cardEl.classList.add('selected');
+
+  const img = new Image();
+  img.onload = () => {
+    sbSelectedImg = img;
+    // Auto-detect cols/rows from common spritesheet patterns (square-ish images)
+    const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+    const g = gcd(img.naturalWidth, img.naturalHeight);
+    // Guess cols/rows based on aspect ratio
+    let guessedCols = Math.round(img.naturalWidth / g);
+    let guessedRows = Math.round(img.naturalHeight / g);
+    // Clamp to reasonable limits
+    if(guessedCols > 16){ guessedCols = Math.max(1, Math.round(img.naturalWidth / 64)); }
+    if(guessedRows > 16){ guessedRows = Math.max(1, Math.round(img.naturalHeight / 64)); }
+    guessedCols = Math.min(guessedCols, 16); guessedRows = Math.min(guessedRows, 16);
+
+    const nameGuess = filename.replace(/_\d+(\.\w+)$/, '$1').replace(/\.[^.]+$/, '');
+    document.getElementById('sbSheetName').value = nameGuess;
+    document.getElementById('sbCols').value = guessedCols;
+    document.getElementById('sbRows').value = guessedRows;
+    document.getElementById('sbPreviewImg').src = url;
+    document.getElementById('sbPreviewSize').textContent = img.naturalWidth + '×' + img.naturalHeight + 'px';
+    document.getElementById('sbConfigArea').classList.add('visible');
+    document.getElementById('sbAddBtn').disabled = false;
+    updateSbPreview();
+  };
+  img.onerror = () => { alert('Could not load: ' + url); };
+  img.src = url + '?t=' + Date.now();
+}
+
+function updateSbPreview(){
+  if(!sbSelectedImg) return;
+  const cols = +document.getElementById('sbCols').value || 1;
+  const rows = +document.getElementById('sbRows').value || 1;
+  const fw = Math.floor(sbSelectedImg.naturalWidth / cols);
+  const fh = Math.floor(sbSelectedImg.naturalHeight / rows);
+  document.getElementById('sbFrameSize').textContent = `${fw}×${fh}px / frame  (${cols*rows} frames)`;
+
+  const mini = document.getElementById('sbFramePreviewMini');
+  mini.innerHTML = '';
+  const maxShow = Math.min(cols * rows, 20);
+  for(let i = 0; i < maxShow; i++){
+    const c = i % cols, r = Math.floor(i / cols);
+    const cvs = document.createElement('canvas');
+    cvs.width = fw; cvs.height = fh;
+    cvs.style.cssText = 'width:24px;height:24px;image-rendering:pixelated;border:1px solid var(--border);border-radius:2px;background:#12121e';
+    cvs.getContext('2d').drawImage(sbSelectedImg, c*fw, r*fh, fw, fh, 0, 0, fw, fh);
+    mini.appendChild(cvs);
+  }
+  if(cols*rows > maxShow){
+    const more = document.createElement('span');
+    more.style.cssText = 'font-size:8px;color:var(--dim);align-self:center;padding:2px';
+    more.textContent = '+' + (cols*rows - maxShow) + ' more';
+    mini.appendChild(more);
+  }
+}
+
+function addServerSpriteToEditor(){
+  if(!sbSelectedImg || !sbSelectedFile) return;
+  const name = document.getElementById('sbSheetName').value || sbSelectedFile.replace(/\.[^.]+$/,'');
+  const cols = +document.getElementById('sbCols').value || 1;
+  const rows = +document.getElementById('sbRows').value || 1;
+  const fw = Math.floor(sbSelectedImg.naturalWidth / cols);
+  const fh = Math.floor(sbSelectedImg.naturalHeight / rows);
+  // Use the exact URL returned by the API (includes category subfolder)
+  const path = sbSelectedUrl || ('/sprites/' + sbSelectedFile);
+
+  // Avoid duplicates
+  if(spriteSheets.find(s => s.path === path)){
+    alert('"'+name+'" is already in your session.');
+    return;
+  }
+
+  const sheet = { id: nextId++, name, path, img: sbSelectedImg, cols, rows, frameW: fw, frameH: fh };
+  spriteSheets.push(sheet);
+  if(!animSheet) animSheet = sheet;
+  renderSpriteSheetList();
+  buildTilePalette();
+  switchTab('sprites');
+  hideSpriteBrowser();
+}
+
+// Wrap loadMapData — assignments are global now, don't restore from map
+const origLoadMapData = loadMapData;
+loadMapData = async function(data){
+  await origLoadMapData(data);
+  buildSpriteAssignUI();
+};
+
+
+function updateStats(){
+  const el=document.getElementById('mapStats');
+  const mobs={};camps.forEach(c=>mobs[c.type]=(mobs[c.type]||0)+c.count);
+  const breakdown=Object.entries(mobs).map(([t,n])=>`${CAMP_DEFAULTS[t]?.icon||'?'}${n}`).join(' ');
+  const totalTiles=tileLayers.reduce((s,l)=>s+l.tiles.length,0);
+  el.innerHTML=`
+    <div>WALLS: <span style="color:var(--cyan)">${walls.length}</span></div>
+    <div>CAMPS: <span style="color:var(--amber)">${camps.length}</span> (${breakdown||'none'})</div>
+    <div>SPAWNS: <span style="color:var(--green)">${spawns.length}</span> (🔵${spawns.filter(s=>s.team===1).length} 🔴${spawns.filter(s=>s.team===2).length})</div>
+    <div>TOWERS: <span style="color:var(--red)">${towers.length}</span></div>
+    <div>TILES: <span style="color:var(--purple)">${totalTiles}</span> on ${tileLayers.length} layers</div>
+    <div>SHEETS: <span style="color:var(--purple)">${spriteSheets.length}</span> • SOUNDS: ${sounds.length}</div>
+    <div>MAP: <span style="color:var(--cyan)">${mapW}×${mapH}</span></div>
+    <div style="margin-top:3px;font-size:8px;color:var(--dim)">GOLD: ${camps.reduce((s,c)=>s+c.gold,0)} | MOBS: ${camps.reduce((s,c)=>s+c.count,0)}</div>`;
+  const total = walls.length+camps.length+spawns.length+towers.length+totalTiles;
+  document.getElementById('bbObjects').textContent = total+' objects';
+}
+
+// ══════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════
+function render(){
+  const renderStart = performance.now();
+  ctx.clearRect(0,0,VW,VH);
+  ctx.fillStyle='#050810';ctx.fillRect(0,0,VW,VH);
+  ctx.save();
+  ctx.scale(zoom,zoom);
+  ctx.translate(-camX,-camY);
+
+  const vx1=camX, vy1=camY, vx2=camX+VW/zoom, vy2=camY+VH/zoom;
+
+  if(showGrid){
+    ctx.strokeStyle='rgba(0,160,255,.03)';ctx.lineWidth=1/zoom;
+    const gs=zoom<0.1?400:zoom<0.2?200:zoom<0.4?100:40;
+    const gxS=Math.floor(vx1/gs)*gs, gyS=Math.floor(vy1/gs)*gs;
+    ctx.beginPath();
+    for(let x=gxS;x<vx2;x+=gs){ctx.moveTo(x,Math.max(0,vy1));ctx.lineTo(x,Math.min(mapH,vy2));}
+    for(let y=gyS;y<vy2;y+=gs){ctx.moveTo(Math.max(0,vx1),y);ctx.lineTo(Math.min(mapW,vx2),y);}
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle='rgba(0,245,255,.25)';ctx.lineWidth=3/zoom;ctx.strokeRect(0,0,mapW,mapH);
+
+  if(showTiles){
+    for(const layer of tileLayers){
+      if(!layer.visible) continue;
+      ctx.globalAlpha = layer.opacity;
+      for(const tile of layer.tiles){
+        if(tile.x+tile.w<vx1||tile.x>vx2||tile.y+tile.h<vy1||tile.y>vy2) continue;
+        const ss = spriteSheets.find(s=>s.id===tile.sheetId);
+        if(!ss||!ss.img) continue;
+        let col = tile.col, row = tile.row;
+        if(layer.animated && ss.cols && ss.rows){
+          const frameCount = Math.max(1, layer.animFrameCount || 4);
+          const fps = layer.fps || 8;
+          let offset = Math.floor(performance.now() / (1000 / fps)) % frameCount;
+          if(layer.ripple){
+            const gx = Math.round(tile.x / (tile.w||tileSize));
+            const gy = Math.round(tile.y / (tile.h||tileSize));
+            offset = (offset + (gx + gy)) % frameCount;
+          }
+          if(layer.animAbsolute){
+            const startIdx = (layer.animAbsRow || 0) * ss.cols + (layer.animAbsCol || 0);
+            const frameIdx = startIdx + offset;
+            col = frameIdx % ss.cols;
+            row = Math.floor(frameIdx / ss.cols);
+          } else if(layer.animDir === 'v'){
+            row = (tile.row + offset) % ss.rows;
+          } else {
+            col = (tile.col + offset) % ss.cols;
+          }
+        }
+        ctx.drawImage(ss.img, col*ss.frameW, row*ss.frameH, ss.frameW, ss.frameH,
+          tile.x, tile.y, tile.w, tile.h);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  if(currentTool==='tile' && !panning){
+    ctx.strokeStyle='rgba(0,245,255,.08)';ctx.lineWidth=1/zoom;
+    const ts=tileSize;
+    const txS=Math.floor(vx1/ts)*ts,tyS=Math.floor(vy1/ts)*ts;
+    ctx.beginPath();
+    for(let x=txS;x<vx2;x+=ts){ctx.moveTo(x,Math.max(0,vy1));ctx.lineTo(x,Math.min(mapH,vy2));}
+    for(let y=tyS;y<vy2;y+=ts){ctx.moveTo(Math.max(0,vx1),y);ctx.lineTo(Math.min(mapW,vx2),y);}
+    ctx.stroke();
+    if(selectedTile){
+      const gx=Math.floor(M.worldX/ts)*ts, gy=Math.floor(M.worldY/ts)*ts;
+      ctx.fillStyle='rgba(0,245,255,.12)';ctx.fillRect(gx,gy,ts,ts);
+      ctx.strokeStyle='rgba(0,245,255,.4)';ctx.lineWidth=2/zoom;ctx.strokeRect(gx,gy,ts,ts);
+      const ss=spriteSheets.find(s=>s.id===selectedTile.sheetId);
+      if(ss&&ss.img){
+        ctx.globalAlpha=0.6;
+        ctx.drawImage(ss.img, selectedTile.col*ss.frameW, selectedTile.row*ss.frameH, ss.frameW, ss.frameH, gx, gy, ts, ts);
+        ctx.globalAlpha=1;
+      }
+    }
+  }
+
+  ctx.fillStyle='rgba(255,170,0,.08)';ctx.fillRect(shopZone.x,shopZone.y,shopZone.w,shopZone.h);
+  ctx.strokeStyle=selected?.type==='shop'?'#ffaa00':'rgba(255,170,0,.4)';ctx.lineWidth=2/zoom;
+  ctx.setLineDash([6/zoom,4/zoom]);ctx.strokeRect(shopZone.x,shopZone.y,shopZone.w,shopZone.h);ctx.setLineDash([]);
+  ctx.fillStyle='#ffaa00';ctx.font=`bold ${18/zoom}px Orbitron,monospace`;ctx.textAlign='center';
+  ctx.fillText('🏪 SHOP',shopZone.x+shopZone.w/2,shopZone.y+shopZone.h/2+6/zoom);
+
+  for(const w of walls){
+    if(w.x+w.w<vx1||w.x>vx2||w.y+w.h<vy1||w.y>vy2) continue;
+    const isSel=selected?.type==='wall'&&selected.obj.id===w.id;
+    if(showCollision){
+      ctx.fillStyle='rgba(255,30,30,.1)';ctx.fillRect(w.x,w.y,w.w,w.h);
+      ctx.save();ctx.beginPath();ctx.rect(w.x,w.y,w.w,w.h);ctx.clip();
+      ctx.strokeStyle='rgba(255,60,60,.12)';ctx.lineWidth=1/zoom;
+      for(let d=-w.h;d<w.w;d+=20){ctx.beginPath();ctx.moveTo(w.x+d,w.y);ctx.lineTo(w.x+d+w.h,w.y+w.h);ctx.stroke();}
+      ctx.restore();
+    }
+    ctx.fillStyle=isSel?'rgba(0,100,200,.5)':'rgba(0,55,130,.35)';ctx.fillRect(w.x,w.y,w.w,w.h);
+    ctx.strokeStyle=isSel?'#00f5ff':'rgba(0,160,255,.45)';ctx.lineWidth=isSel?3/zoom:1.5/zoom;ctx.strokeRect(w.x,w.y,w.w,w.h);
+    if(isSel){const hs=8/zoom;ctx.fillStyle='#00f5ff';ctx.fillRect(w.x-hs/2,w.y-hs/2,hs,hs);ctx.fillRect(w.x+w.w-hs/2,w.y+w.h-hs/2,hs,hs);}
+    if(zoom>0.08){ctx.fillStyle='#fff5';ctx.font=`${9/zoom}px "JetBrains Mono"`;ctx.textAlign='center';ctx.fillText(`${Math.round(w.w)}×${Math.round(w.h)}`,w.x+w.w/2,w.y+w.h/2+4/zoom);}
+  }
+
+  for(const t of towers){
+    if(t.x-t.atkRange>vx2||t.x+t.atkRange<vx1||t.y-t.atkRange>vy2||t.y+t.atkRange<vy1) continue;
+    const isSel=selected?.type==='tower'&&selected.obj.id===t.id;
+    const col=t.team===1?'#4488ff':'#ff4444';
+    if(showTowerRange){
+      ctx.beginPath();ctx.arc(t.x,t.y,t.atkRange,0,Math.PI*2);
+      ctx.fillStyle=col+'08';ctx.fill();
+      ctx.strokeStyle=col+'28';ctx.lineWidth=1/zoom;
+      ctx.setLineDash([8/zoom,6/zoom]);ctx.stroke();ctx.setLineDash([]);
+    }
+    ctx.beginPath();ctx.arc(t.x,t.y,t.radius,0,Math.PI*2);
+    ctx.fillStyle=isSel?col+'88':col+'55';ctx.fill();
+    ctx.strokeStyle=isSel?'#fff':col;ctx.lineWidth=isSel?3/zoom:2/zoom;ctx.stroke();
+    ctx.font=`${26/zoom}px sans-serif`;ctx.textAlign='center';ctx.fillText('🏰',t.x,t.y+10/zoom);
+    if(zoom>0.08){
+      ctx.fillStyle=col;ctx.font=`bold ${9/zoom}px Orbitron,monospace`;
+      ctx.fillText(t.team===1?'BLUE':'RED',t.x,t.y-t.radius-8/zoom);
+    }
+  }
+
+  for(const c of camps){
+    if(c.x-50>vx2||c.x+50<vx1||c.y-50>vy2||c.y+50<vy1) continue;
+    const cd=CAMP_DEFAULTS[c.type]||CAMP_DEFAULTS.wraith;
+    const isSel=selected?.type==='camp'&&selected.obj.id===c.id;
+    ctx.strokeStyle=isSel?'#fff':cd.color+'44';ctx.lineWidth=isSel?2.5/zoom:1/zoom;
+    ctx.beginPath();ctx.arc(c.x,c.y,42,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=cd.color+'18';ctx.beginPath();ctx.arc(c.x,c.y,42,0,Math.PI*2);ctx.fill();
+    ctx.font=`${22/zoom}px sans-serif`;ctx.textAlign='center';ctx.fillText(cd.icon,c.x,c.y+8/zoom);
+    if(zoom>0.08){
+      ctx.fillStyle=cd.color;ctx.font=`bold ${8/zoom}px Orbitron,monospace`;ctx.fillText(c.type.toUpperCase(),c.x,c.y-32/zoom);
+      ctx.fillStyle='#ffaa0077';ctx.font=`${7/zoom}px "JetBrains Mono"`;ctx.fillText(`×${c.count} +${c.gold}g`,c.x,c.y+42/zoom);
+    }
+  }
+
+  const bi={n:0},ri={n:0};
+  for(const s of spawns){
+    if(s.x-25>vx2||s.x+25<vx1||s.y-25>vy2||s.y+25<vy1) continue;
+    const isSel=selected?.type==='spawn'&&selected.obj.id===s.id;
+    const col=s.team===1?'#4488ff':'#ff4444';
+    const num=s.team===1?++bi.n:++ri.n;
+    ctx.strokeStyle=isSel?'#fff':col;ctx.lineWidth=isSel?3/zoom:2/zoom;
+    ctx.beginPath();ctx.arc(s.x,s.y,18,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=col+'44';ctx.beginPath();ctx.arc(s.x,s.y,18,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=col;ctx.font=`bold ${10/zoom}px Orbitron,monospace`;ctx.textAlign='center';
+    ctx.fillText(`P${num}`,s.x,s.y+4/zoom);
+  }
+
+  if(drawing&&currentTool==='wall'){
+    const w=s2w(M.x,M.y);
+    const x1=Math.min(drawStart.x,snap(w.x)),y1=Math.min(drawStart.y,snap(w.y));
+    const x2=Math.max(drawStart.x,snap(w.x)),y2=Math.max(drawStart.y,snap(w.y));
+    ctx.fillStyle='rgba(0,100,200,.25)';ctx.fillRect(x1,y1,x2-x1,y2-y1);
+    ctx.strokeStyle='#00f5ff';ctx.lineWidth=2/zoom;ctx.setLineDash([4/zoom,4/zoom]);
+    ctx.strokeRect(x1,y1,x2-x1,y2-y1);ctx.setLineDash([]);
+    ctx.fillStyle='#fff';ctx.font=`${10/zoom}px "JetBrains Mono"`;ctx.textAlign='center';
+    ctx.fillText(`${Math.round(x2-x1)}×${Math.round(y2-y1)}`,(x1+x2)/2,(y1+y2)/2+4/zoom);
+  }
+
+  if(currentTool==='camp'&&!panning){
+    const cd=CAMP_DEFAULTS[campType];
+    ctx.globalAlpha=0.5; ctx.strokeStyle=cd.color; ctx.lineWidth=1.5/zoom;
+    ctx.beginPath(); ctx.arc(M.worldX,M.worldY,42,0,Math.PI*2); ctx.stroke();
+    // crosshair
+    ctx.lineWidth=1/zoom; ctx.globalAlpha=0.4;
+    ctx.moveTo(M.worldX-60/zoom,M.worldY); ctx.lineTo(M.worldX+60/zoom,M.worldY);
+    ctx.moveTo(M.worldX,M.worldY-60/zoom); ctx.lineTo(M.worldX,M.worldY+60/zoom);
+    ctx.stroke();
+    ctx.globalAlpha=0.8;
+    ctx.font=`${22/zoom}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(cd.icon, M.worldX, M.worldY);
+    ctx.textBaseline='alphabetic'; ctx.globalAlpha=1;
+  }
+  if(currentTool==='spawn'&&!panning){
+    const nt=spawns.filter(s=>s.team===1).length<=spawns.filter(s=>s.team===2).length?1:2;
+    const col=nt===1?'#4488ff':'#ff4444';
+    ctx.globalAlpha=0.6;
+    ctx.strokeStyle=col; ctx.lineWidth=2/zoom;
+    ctx.beginPath(); ctx.arc(M.worldX,M.worldY,18,0,Math.PI*2); ctx.stroke();
+    ctx.lineWidth=1/zoom; ctx.globalAlpha=0.3;
+    ctx.beginPath();
+    ctx.moveTo(M.worldX-30/zoom,M.worldY); ctx.lineTo(M.worldX+30/zoom,M.worldY);
+    ctx.moveTo(M.worldX,M.worldY-30/zoom); ctx.lineTo(M.worldX,M.worldY+30/zoom);
+    ctx.stroke();
+    ctx.globalAlpha=0.9;
+    ctx.fillStyle=col; ctx.font=`bold ${9/zoom}px Orbitron,monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(nt===1?'BLUE':'RED', M.worldX, M.worldY);
+    ctx.textBaseline='alphabetic'; ctx.globalAlpha=1;
+  }
+  if(currentTool==='tower'&&!panning){
+    const nt=towers.filter(t=>t.team===1).length<=towers.filter(t=>t.team===2).length?1:2;
+    const col=nt===1?'#4488ff':'#ff4444';
+    ctx.globalAlpha=0.3;
+    ctx.beginPath(); ctx.arc(M.worldX,M.worldY,TOWER_DEFAULT.atkRange,0,Math.PI*2);
+    ctx.strokeStyle=col+'44'; ctx.lineWidth=1/zoom; ctx.setLineDash([6/zoom,4/zoom]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(M.worldX,M.worldY,TOWER_DEFAULT.radius,0,Math.PI*2); ctx.fillStyle=col; ctx.fill();
+    ctx.globalAlpha=0.9;
+    ctx.font=`${24/zoom}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('🏰', M.worldX, M.worldY);
+    ctx.textBaseline='alphabetic'; ctx.globalAlpha=1;
+  }
+  if(currentTool==='erase'&&!panning){
+    // Show hovered object highlight
+    const hov=hitTest(M.worldX,M.worldY);
+    if(hov){
+      ctx.globalAlpha=0.25; ctx.fillStyle='#ff3355';
+      if(hov.type==='wall') ctx.fillRect(hov.obj.x,hov.obj.y,hov.obj.w,hov.obj.h);
+      else { ctx.beginPath(); ctx.arc(hov.obj.x,hov.obj.y,50,0,Math.PI*2); ctx.fill(); }
+      ctx.globalAlpha=1;
+    }
+    ctx.strokeStyle='rgba(255,51,85,.7)'; ctx.lineWidth=2/zoom;
+    ctx.beginPath();
+    ctx.moveTo(M.worldX-14/zoom,M.worldY-14/zoom); ctx.lineTo(M.worldX+14/zoom,M.worldY+14/zoom);
+    ctx.moveTo(M.worldX+14/zoom,M.worldY-14/zoom); ctx.lineTo(M.worldX-14/zoom,M.worldY+14/zoom);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+  renderMinimap();
+  updateStats();
+  updateAnimPreview();
+
+  frameCount++;
+  const now = performance.now();
+  if(now - lastFpsTime > 500){
+    currentFps = Math.round(frameCount / ((now-lastFpsTime)/1000));
+    frameCount = 0; lastFpsTime = now;
+    document.getElementById('bbFps').textContent = currentFps+' FPS';
+  }
+  if(showPerf){
+    const renderTime = (performance.now()-renderStart).toFixed(1);
+    const totalTiles = tileLayers.reduce((s,l)=>s+l.tiles.length,0);
+    const perfEl = document.getElementById('perfStats');
+    const fpsClass = currentFps<30?'bad':currentFps<55?'warn':'';
+    perfEl.innerHTML = `<div class="${fpsClass}">${currentFps} FPS</div><div>Render: ${renderTime}ms</div><div>Objects: ${walls.length+camps.length+spawns.length+towers.length}</div><div>Tiles: ${totalTiles}</div><div>Sheets: ${spriteSheets.length}</div>`;
+  } else {
+    document.getElementById('perfStats').innerHTML='';
+  }
+}
+
+function renderMinimap(){
+  const mw=180,mh=100;
+  mmCtx.clearRect(0,0,mw,mh);
+  mmCtx.fillStyle='rgba(5,8,16,.92)';mmCtx.fillRect(0,0,mw,mh);
+  const sx=mw/mapW,sy=mh/mapH;
+  mmCtx.fillStyle='rgba(0,100,200,.4)';
+  for(const w of walls) mmCtx.fillRect(w.x*sx,w.y*sy,Math.max(1,w.w*sx),Math.max(1,w.h*sy));
+  mmCtx.fillStyle='rgba(255,170,0,.5)';
+  mmCtx.fillRect(shopZone.x*sx,shopZone.y*sy,Math.max(2,shopZone.w*sx),Math.max(2,shopZone.h*sy));
+  for(const c of camps){
+    const cd=CAMP_DEFAULTS[c.type]||CAMP_DEFAULTS.wraith;
+    mmCtx.fillStyle=cd.color+'88';mmCtx.beginPath();mmCtx.arc(c.x*sx,c.y*sy,2,0,Math.PI*2);mmCtx.fill();
+  }
+  for(const s of spawns){mmCtx.fillStyle=s.team===1?'#4488ff':'#ff4444';mmCtx.beginPath();mmCtx.arc(s.x*sx,s.y*sy,3,0,Math.PI*2);mmCtx.fill();}
+  for(const t of towers){mmCtx.fillStyle=t.team===1?'#4488ff':'#ff4444';mmCtx.fillRect(t.x*sx-3,t.y*sy-3,6,6);}
+  mmCtx.strokeStyle='rgba(255,255,255,.35)';mmCtx.lineWidth=1;
+  mmCtx.strokeRect(camX*sx,camY*sy,(VW/zoom)*sx,(VH/zoom)*sy);
+  mmCtx.strokeStyle='rgba(0,245,255,.2)';mmCtx.strokeRect(0,0,mw,mh);
+}
+
+function editorLoop(){
+  render();
+  requestAnimationFrame(editorLoop);
+}
+
+camX = mapW/2 - VW/2/zoom;
+camY = mapH/2 - VH/2/zoom;
+
+function loadDefault(){
+  walls=[
+    {x:mapW*.44,y:mapH*.10,w:mapW*.12,h:mapH*.03},{x:mapW*.44,y:mapH*.87,w:mapW*.12,h:mapH*.03},
+    {x:mapW*.15,y:mapH*.35,w:mapW*.04,h:mapH*.14},{x:mapW*.81,y:mapH*.35,w:mapW*.04,h:mapH*.14},
+    {x:mapW*.36,y:mapH*.44,w:mapW*.03,h:mapH*.12},{x:mapW*.61,y:mapH*.44,w:mapW*.03,h:mapH*.12},
+    {x:mapW*.06,y:mapH*.06,w:mapW*.05,h:mapH*.06},{x:mapW*.89,y:mapH*.06,w:mapW*.05,h:mapH*.06},
+    {x:mapW*.06,y:mapH*.88,w:mapW*.05,h:mapH*.06},{x:mapW*.89,y:mapH*.88,w:mapW*.05,h:mapH*.06},
+    {x:mapW*.24,y:mapH*.20,w:mapW*.03,h:mapH*.05},{x:mapW*.73,y:mapH*.20,w:mapW*.03,h:mapH*.05},
+    {x:mapW*.24,y:mapH*.75,w:mapW*.03,h:mapH*.05},{x:mapW*.73,y:mapH*.75,w:mapW*.03,h:mapH*.05},
+    {x:mapW*.47,y:mapH*.30,w:mapW*.06,h:mapH*.03},{x:mapW*.47,y:mapH*.67,w:mapW*.06,h:mapH*.03},
+    {x:mapW*.20,y:mapH*.48,w:mapW*.03,h:mapH*.04},{x:mapW*.77,y:mapH*.48,w:mapW*.03,h:mapH*.04},
+    {x:mapW*.12,y:mapH*.50,w:mapW*.02,h:mapH*.08},{x:mapW*.86,y:mapH*.50,w:mapW*.02,h:mapH*.08},
+    {x:mapW*.40,y:mapH*.38,w:mapW*.02,h:mapH*.04},{x:mapW*.58,y:mapH*.58,w:mapW*.02,h:mapH*.04},
+  ].map(w=>({...w,id:nextId++}));
+  camps=[
+    {x:mapW*.50,y:mapH*.50,type:'infernal',count:1,gold:80,respawnTime:50000},
+    {x:mapW*.50,y:mapH*.10,type:'dragon',count:1,gold:60,respawnTime:45000},
+    {x:mapW*.50,y:mapH*.90,type:'hydra',count:1,gold:70,respawnTime:50000},
+    {x:mapW*.30,y:mapH*.30,type:'wraith',count:3,gold:30,respawnTime:20000},
+    {x:mapW*.70,y:mapH*.30,type:'wraith',count:3,gold:30,respawnTime:20000},
+    {x:mapW*.30,y:mapH*.70,type:'spider',count:4,gold:25,respawnTime:16000},
+    {x:mapW*.70,y:mapH*.70,type:'spider',count:4,gold:25,respawnTime:16000},
+    {x:mapW*.15,y:mapH*.40,type:'golem',count:1,gold:35,respawnTime:30000},
+    {x:mapW*.85,y:mapH*.40,type:'golem',count:1,gold:35,respawnTime:30000},
+    {x:mapW*.15,y:mapH*.60,type:'vampire',count:2,gold:30,respawnTime:25000},
+    {x:mapW*.85,y:mapH*.60,type:'vampire',count:2,gold:30,respawnTime:25000},
+    {x:mapW*.35,y:mapH*.15,type:'sentinel',count:2,gold:28,respawnTime:22000},
+    {x:mapW*.65,y:mapH*.15,type:'sentinel',count:2,gold:28,respawnTime:22000},
+    {x:mapW*.35,y:mapH*.85,type:'banshee',count:2,gold:26,respawnTime:22000},
+    {x:mapW*.65,y:mapH*.85,type:'banshee',count:2,gold:26,respawnTime:22000},
+    {x:mapW*.10,y:mapH*.25,type:'berserker',count:1,gold:40,respawnTime:28000},
+    {x:mapW*.90,y:mapH*.25,type:'berserker',count:1,gold:40,respawnTime:28000},
+    {x:mapW*.10,y:mapH*.75,type:'minotaur',count:1,gold:55,respawnTime:35000},
+    {x:mapW*.90,y:mapH*.75,type:'minotaur',count:1,gold:55,respawnTime:35000},
+    {x:mapW*.25,y:mapH*.50,type:'shaman',count:2,gold:28,respawnTime:25000},
+    {x:mapW*.75,y:mapH*.50,type:'shaman',count:2,gold:28,respawnTime:25000},
+    {x:mapW*.40,y:mapH*.25,type:'phoenix',count:1,gold:50,respawnTime:40000},
+    {x:mapW*.60,y:mapH*.75,type:'phoenix',count:1,gold:50,respawnTime:40000},
+    {x:mapW*.20,y:mapH*.15,type:'lich',count:1,gold:55,respawnTime:38000},
+    {x:mapW*.80,y:mapH*.85,type:'lich',count:1,gold:55,respawnTime:38000},
+  ].map(c=>({...c,id:nextId++}));
+  spawns=[
+    {x:mapW*.08,y:mapH*.35,team:1},{x:mapW*.08,y:mapH*.50,team:1},{x:mapW*.08,y:mapH*.65,team:1},
+    {x:mapW*.92,y:mapH*.35,team:2},{x:mapW*.92,y:mapH*.50,team:2},{x:mapW*.92,y:mapH*.65,team:2},
+  ].map(s=>({...s,id:nextId++}));
+  towers=[
+    {x:mapW*0.05,y:mapH*0.50,team:1,...TOWER_DEFAULT},{x:mapW*0.95,y:mapH*0.50,team:2,...TOWER_DEFAULT},
+  ].map(t=>({...t,id:nextId++}));
+}
+
+loadDefault();
+renderSpriteSheetList();
+buildTilePalette();
+renderSoundList();
+buildSpriteAssignUI();
+editorLoop();
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/adamn/Pictures/tester2/**)",
+      "Bash(ls -d *reflex*)",
+      "Bash(grep -n \"function draw\\\\|function.*draw\" public/js/*.js)",
+      "Bash(grep -E \"\\\\.\\(html|js|css|json\\)$\")"
+    ]
+  }
+}

@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<!-- Performance hints for Chrome -->
+<meta http-equiv="X-DNS-Prefetch-Control" content="on">
+<link rel="preconnect" href="ws://localhost:9090">
+<link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.4.2/pixi.min.js" as="script">
+<link rel="preload" href="js/renderer-pixi.js" as="script">
+<link rel="preload" href="js/network.js" as="script">
+<script>
+// Request high-priority rendering
+if ('scheduler' in window && 'yield' in window.scheduler) {
+  // Scheduler API available — game loop can yield cooperatively
+}
+// Disable back-forward cache (keeps game from stalling on tab switch)
+window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+// Request high-performance GPU if available
+</script>
+<title>Reflex Arena: Resource Wars</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --cyan:#00f5ff;--magenta:#ff00aa;--green:#00ff88;--amber:#ffaa00;
+  --red:#ff3355;--purple:#cc44ff;--necro:#88cc44;--ranger:#ff8833;--bg:#050810;--panel:#0a1020;
+  --border:#1a3050;--text:#c0d8f0;--dim:#4a6080;
+  --team-blue:#4488ff;--team-red:#ff4444;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:'Share Tech Mono',monospace;color:var(--text);cursor:url('sprites/cursor.png') 64 64, crosshair}
+#app{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center}
+canvas{display:block}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:10}
+.screen.hidden{display:none}
+#menuScreen,#lbScreen,#classScreen,#mmScreen,#tutorialScreen,#resultScreen{background:var(--bg)}
+
+/* PRACTICE TOOLBAR */
+#practiceToolbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px;pointer-events:all;z-index:20;flex-wrap:wrap;justify-content:center;max-width:90vw}
+#practiceToolbar.hidden{display:none}
+.ptool-btn{font-family:'Orbitron',monospace;font-size:10px;font-weight:700;letter-spacing:1px;padding:6px 12px;border:1px solid var(--green);color:var(--green);background:rgba(5,8,16,.92);cursor:pointer;transition:all .12s;white-space:nowrap}
+.ptool-btn:hover{background:var(--green);color:var(--bg);box-shadow:0 0 12px var(--green)}
+.ptool-btn.ptool-active{background:rgba(0,255,136,.15);box-shadow:inset 0 0 8px rgba(0,255,136,.2)}
+.ptool-btn.ptool-red{border-color:var(--red);color:var(--red)}.ptool-btn.ptool-red:hover{background:var(--red);color:var(--bg);box-shadow:0 0 12px var(--red)}
+.ptool-btn.ptool-amber{border-color:var(--amber);color:var(--amber)}.ptool-btn.ptool-amber:hover{background:var(--amber);color:var(--bg);box-shadow:0 0 12px var(--amber)}
+.ptool-btn.ptool-cyan{border-color:var(--cyan);color:var(--cyan)}.ptool-btn.ptool-cyan:hover{background:var(--cyan);color:var(--bg);box-shadow:0 0 12px var(--cyan)}
+.ptool-btn.ptool-purple{border-color:var(--purple);color:var(--purple)}.ptool-btn.ptool-purple:hover{background:var(--purple);color:var(--bg);box-shadow:0 0 12px var(--purple)}
+#practiceDmgLog{position:absolute;top:50px;right:12px;width:200px;max-height:300px;overflow-y:auto;pointer-events:none;z-index:20;font-size:10px;font-family:'Share Tech Mono',monospace;color:var(--text)}
+#practiceDmgLog.hidden{display:none}
+.dmglog-entry{padding:2px 6px;background:rgba(5,8,16,.85);margin-bottom:2px;border-left:2px solid var(--red)}
+.logo{font-family:'Orbitron',monospace;font-size:clamp(24px,5vw,52px);font-weight:900;letter-spacing:4px;text-align:center;line-height:1.2}
+.logo .line1{color:var(--cyan);text-shadow:0 0 20px var(--cyan),0 0 40px var(--cyan)}
+.logo .line2{color:var(--magenta);font-size:0.5em;letter-spacing:8px;text-shadow:0 0 10px var(--magenta)}
+.tagline{color:var(--dim);font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-top:-10px}
+.btn{font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:2px;padding:12px 32px;border:1px solid;cursor:pointer;transition:all .15s;text-transform:uppercase;background:transparent}
+.btn-primary{color:var(--cyan);border-color:var(--cyan)}
+.btn-primary:hover{background:var(--cyan);color:var(--bg);box-shadow:0 0 20px var(--cyan)}
+.btn-secondary{color:var(--text);border-color:var(--border)}
+.btn-secondary:hover{border-color:var(--text);background:rgba(255,255,255,.05)}
+.btn-team{color:var(--amber);border-color:var(--amber)}
+.btn-team:hover{background:var(--amber);color:var(--bg);box-shadow:0 0 20px var(--amber)}
+.menu-buttons{display:flex;flex-direction:column;gap:12px;align-items:center;margin-top:10px}
+.lb-title{font-family:'Orbitron',monospace;font-size:20px;color:var(--amber);letter-spacing:3px;margin-bottom:10px}
+.lb-table{border-collapse:collapse;min-width:420px}
+.lb-table th{color:var(--dim);font-size:11px;letter-spacing:2px;padding:6px 16px;text-align:left;border-bottom:1px solid var(--border)}
+.lb-table td{padding:8px 16px;font-size:13px;border-bottom:1px solid rgba(26,48,80,.4)}
+.lb-table tr:hover td{background:rgba(0,245,255,.04)}
+.rank-1{color:var(--amber)}.rank-2{color:#aaa}.rank-3{color:#cd7f32}
+.mm-status{font-size:14px;color:var(--dim);letter-spacing:2px}
+.mm-dots span{display:inline-block;animation:blink 1.2s infinite}
+.mm-dots span:nth-child(2){animation-delay:.4s}
+.mm-dots span:nth-child(3){animation-delay:.8s}
+@keyframes blink{0%,80%,100%{opacity:1}40%{opacity:0}}
+.mm-spinner{width:60px;height:60px;border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.mm-info{color:var(--dim);font-size:12px;text-align:center}
+.elo-badge{font-family:'Orbitron',monospace;font-size:24px;font-weight:700;color:var(--cyan)}
+
+/* CLASS SELECT */
+.class-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:1350px;width:95vw}
+@media(min-width:900px){.class-grid{grid-template-columns:repeat(6,1fr)}}
+.class-card{border:1px solid var(--border);padding:20px;background:var(--panel);cursor:pointer;transition:all .18s;position:relative}
+.class-card:hover{transform:translateY(-3px)}
+.class-card.selected{transform:translateY(-4px)}
+.class-card.gunner{border-color:rgba(0,245,255,.4)}
+.class-card.gunner:hover,.class-card.gunner.selected{border-color:var(--cyan);box-shadow:0 0 24px rgba(0,245,255,.22)}
+.class-card.assassin{border-color:rgba(255,51,85,.4)}
+.class-card.assassin:hover,.class-card.assassin.selected{border-color:var(--red);box-shadow:0 0 24px rgba(255,51,85,.22)}
+.class-card.mage{border-color:rgba(204,68,255,.4)}
+.class-card.mage:hover,.class-card.mage.selected{border-color:var(--purple);box-shadow:0 0 24px rgba(204,68,255,.22)}
+.class-card.tank{border-color:rgba(0,255,136,.4)}
+.class-card.tank:hover,.class-card.tank.selected{border-color:var(--green);box-shadow:0 0 24px rgba(0,255,136,.22)}
+.class-card.necro{border-color:rgba(136,204,68,.4)}
+.class-card.necro:hover,.class-card.necro.selected{border-color:var(--necro);box-shadow:0 0 24px rgba(136,204,68,.22)}
+.class-card.ranger{border-color:rgba(255,136,51,.4)}
+.class-card.ranger:hover,.class-card.ranger.selected{border-color:var(--ranger);box-shadow:0 0 24px rgba(255,136,51,.22)}
+.class-icon{font-size:40px;text-align:center;margin-bottom:10px;line-height:1}
+.class-name{font-family:'Orbitron',monospace;font-size:15px;font-weight:700;letter-spacing:2px;text-align:center;margin-bottom:5px}
+.class-card.gunner .class-name{color:var(--cyan)}
+.class-card.assassin .class-name{color:var(--red)}
+.class-card.mage .class-name{color:var(--purple)}
+.class-card.tank .class-name{color:var(--green)}
+.class-card.necro .class-name{color:var(--necro)}
+.class-card.ranger .class-name{color:var(--ranger)}
+.class-tag{font-size:10px;color:var(--dim);text-align:center;letter-spacing:2px;margin-bottom:10px}
+.class-desc{font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px}
+.class-stats{display:grid;grid-template-columns:60px 1fr;gap:4px 8px;font-size:10px;margin-bottom:10px}
+.stat-label{color:var(--dim);letter-spacing:1px;line-height:8px;padding-top:0px}
+.stat-bar{height:5px;background:rgba(255,255,255,.07);align-self:center}
+.stat-fill{height:100%}
+.class-ability{border-top:1px solid var(--border);padding-top:10px;font-size:10px;color:var(--dim);line-height:1.6}
+.ability-name{letter-spacing:1px;margin-bottom:2px;font-weight:700}
+.class-card.gunner .ability-name{color:var(--cyan)}
+.class-card.assassin .ability-name{color:var(--red)}
+.class-card.mage .ability-name{color:var(--purple)}
+.class-card.tank .ability-name{color:var(--green)}
+.class-card.necro .ability-name{color:var(--necro)}
+.class-card.ranger .ability-name{color:var(--ranger)}
+.sel-badge{display:none;position:absolute;top:8px;right:8px;font-size:9px;padding:2px 7px;border:1px solid;font-family:'Orbitron',monospace}
+.class-card.selected .sel-badge{display:block}
+.class-card.gunner.selected .sel-badge{color:var(--cyan);border-color:var(--cyan)}
+.class-card.assassin.selected .sel-badge{color:var(--red);border-color:var(--red)}
+.class-card.mage.selected .sel-badge{color:var(--purple);border-color:var(--purple)}
+.class-card.tank.selected .sel-badge{color:var(--green);border-color:var(--green)}
+.class-card.necro.selected .sel-badge{color:var(--necro);border-color:var(--necro)}
+.class-card.ranger.selected .sel-badge{color:var(--ranger);border-color:var(--ranger)}
+
+/* HUD — Cyberpunk MOBA Redesign */
+#hud{position:absolute;inset:0;pointer-events:none;z-index:5}
+#shopBtn{pointer-events:all;position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  font-family:'Orbitron',monospace;font-size:11px;font-weight:700;letter-spacing:2px;
+  padding:8px 20px;border:1px solid var(--amber);color:var(--amber);background:rgba(5,8,16,.85);cursor:pointer;transition:all .15s}
+#shopBtn:hover{background:var(--amber);color:var(--bg)}
+
+/* HUD panels */
+.hud-panel{background:linear-gradient(180deg,rgba(5,8,16,.92),rgba(10,16,32,.88));border:1px solid rgba(0,245,255,.15);backdrop-filter:blur(6px);border-radius:4px;padding:8px 12px}
+.hud-tl{position:absolute;top:8px;left:8px}
+.hud-tr{position:absolute;top:8px;right:8px;text-align:right}
+.hud-bl{position:absolute;bottom:8px;left:8px}
+.hud-br{position:absolute;bottom:8px;right:8px}
+.hud-tc{position:absolute;top:8px;left:50%;transform:translateX(-50%);text-align:center}
+.hud-label{font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px}
+.hud-val{font-family:'Orbitron',monospace;font-size:14px;font-weight:700}
+.hud-health{color:var(--green)}.hud-energy{color:var(--amber)}
+.hud-score{color:var(--cyan);font-size:20px}.hud-timer{color:#fff;font-size:18px;letter-spacing:2px}
+
+/* HP Bar */
+.hp-bar-wrap{width:200px;height:16px;background:rgba(0,0,0,.6);border:1px solid rgba(0,255,136,.3);border-radius:2px;position:relative;overflow:hidden;margin:4px 0}
+.hp-bar-fill{height:100%;background:linear-gradient(90deg,#ff3355,#00ff88);transition:width .15s;border-radius:1px}
+.hp-bar-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:'Orbitron',monospace;color:#fff;text-shadow:0 1px 3px #000}
+
+/* Cooldown pills */
+.cd-pill{font-size:11px;padding:4px 8px;border:1px solid;margin-bottom:3px;display:inline-block}
+.cd-ready{color:var(--green);border-color:var(--green)}
+.cd-wait{color:var(--dim);border-color:var(--dim)}
+.hud-upgrades{display:flex;flex-wrap:wrap;gap:3px;max-width:200px;margin-top:4px}
+.up-badge{font-size:9px;padding:2px 5px;border:1px solid;letter-spacing:1px}
+.up-badge-o{color:var(--red);border-color:var(--red)}
+.up-badge-d{color:var(--cyan);border-color:var(--cyan)}
+.up-badge-m{color:var(--green);border-color:var(--green)}
+
+/* Streak HUD */
+#streakBar{position:absolute;top:40px;left:50%;transform:translateX(-50%);display:flex;gap:6px;pointer-events:none;font-family:'Orbitron',monospace}
+.streak-indicator{font-size:11px;padding:4px 10px;border:1px solid;letter-spacing:1px;background:rgba(5,8,16,.85)}
+.streak-active{color:var(--amber);border-color:var(--amber);text-shadow:0 0 8px var(--amber)}
+.streak-inactive{color:var(--dim);border-color:var(--border)}
+
+/* Ability Bar — MOBA style */
+#abilityBar{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:4px;pointer-events:none}
+.abi-slot{width:56px;height:56px;border:2px solid var(--border);background:linear-gradient(180deg,rgba(10,16,32,.95),rgba(5,8,16,.95));position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;border-radius:6px;overflow:hidden}
+.abi-slot .abi-icon{font-size:20px;line-height:1;z-index:2}
+.abi-slot .abi-key{position:absolute;top:2px;left:4px;font-size:8px;color:var(--dim);font-family:'Orbitron',monospace;letter-spacing:1px;z-index:2}
+.abi-slot .abi-cd{position:absolute;bottom:2px;right:4px;font-family:'Orbitron',monospace;font-size:10px;color:#fff;z-index:2;text-shadow:0 1px 2px #000}
+.abi-slot .abi-cd-overlay{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);transition:height .1s;z-index:1}
+.abi-slot.abi-ready{border-color:var(--green);box-shadow:0 0 8px rgba(0,255,136,.3)}
+.abi-slot.abi-active{border-color:#fff;box-shadow:0 0 12px rgba(255,255,255,.4);animation:abiPulse .5s infinite}
+@keyframes abiPulse{0%,100%{box-shadow:0 0 12px rgba(255,255,255,.4)}50%{box-shadow:0 0 20px rgba(255,255,255,.7)}}
+
+/* Items Bar */
+#itemsBar{position:absolute;bottom:12px;right:12px;display:flex;gap:4px;pointer-events:none}
+.item-slot{width:36px;height:36px;border:1px solid var(--border);background:rgba(10,16,32,.9);display:flex;align-items:center;justify-content:center;font-size:8px;font-family:'Orbitron',monospace;letter-spacing:1px;border-radius:4px}
+.item-slot.item-owned{border-color:var(--amber);box-shadow:inset 0 0 6px rgba(255,170,0,.15)}
+.item-slot .item-icon{font-size:14px}
+.item-slot .item-label{font-size:7px;color:var(--dim);position:absolute;bottom:1px}
+
+/* Class badge */
+.hud-cls{font-size:10px;padding:3px 8px;border:1px solid;letter-spacing:2px;font-family:'Orbitron',monospace;margin-bottom:5px;display:inline-block;border-radius:3px}
+.cls-g{color:var(--cyan);border-color:var(--cyan)}
+.cls-a{color:var(--red);border-color:var(--red)}
+.cls-m{color:var(--purple);border-color:var(--purple)}
+.cls-t{color:var(--green);border-color:var(--green)}
+.cls-n{color:var(--necro);border-color:var(--necro)}
+.cls-r{color:var(--ranger);border-color:var(--ranger)}
+
+/* Consumable Hotbar */
+#consumableBar{position:absolute;bottom:80px;right:12px;display:flex;flex-direction:column;gap:4px;pointer-events:all;z-index:6}
+.cons-slot{width:44px;height:44px;border:1px solid var(--border);background:rgba(10,16,32,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;transition:all .15s;border-radius:4px}
+.cons-slot:hover{border-color:var(--amber);background:rgba(255,170,0,.12);box-shadow:0 0 8px rgba(255,170,0,.2)}
+.cons-slot.has-item{border-color:var(--amber);box-shadow:inset 0 0 6px rgba(255,170,0,.15)}
+.cons-slot .cons-key{position:absolute;top:2px;left:4px;font-size:9px;color:var(--dim);font-family:Orbitron,monospace}
+.cons-slot .cons-icon{font-size:16px}
+.cons-slot .cons-count{position:absolute;bottom:1px;right:4px;font-size:9px;color:var(--amber);font-family:Orbitron,monospace;font-weight:bold}
+.cons-slot.on-cooldown{opacity:.5;border-color:var(--dim)}
+.cons-slot.on-cooldown::after{content:'';position:absolute;bottom:0;left:0;width:100%;background:rgba(255,170,0,.3);pointer-events:none}
+
+/* Killfeed */
+#killfeed{position:absolute;top:50px;right:8px;padding:4px;pointer-events:none;max-width:280px}
+.kf-entry{font-size:11px;color:var(--text);margin-bottom:3px;opacity:1;transition:opacity 2s;text-align:right;background:rgba(5,8,16,.8);padding:3px 8px;border-right:2px solid var(--red);border-radius:2px}
+.kf-entry.fade{opacity:0}
+
+/* Scoreboard */
+#hudScoreboard{position:absolute;top:8px;right:8px;min-width:200px;pointer-events:none}
+.sb-row{display:flex;gap:6px;align-items:center;padding:3px 8px;font-size:10px;font-family:'Share Tech Mono',monospace;background:rgba(5,8,16,.8);border:1px solid rgba(26,48,80,.4);margin-bottom:2px;border-radius:2px}
+.sb-row.sb-you{border-color:var(--cyan);background:rgba(0,245,255,.06)}
+.sb-row.sb-dead{opacity:.4}
+.sb-team{font-size:10px}.sb-icon{font-size:12px}.sb-name{flex:1;letter-spacing:1px}.sb-kills{color:var(--amber);font-size:9px}.sb-hp{color:var(--green);font-size:9px}
+
+/* KILLSTREAK POPUP */
+#streakPopup{position:absolute;top:22%;left:50%;transform:translateX(-50%);pointer-events:none;z-index:50;text-align:center}
+.streak-announce{font-family:'Orbitron',monospace;font-weight:900;letter-spacing:6px;text-transform:uppercase;animation:streakPop 2s ease-out forwards;opacity:0}
+.streak-announce .streak-text{font-size:clamp(28px,5vw,56px);color:#ff3355;text-shadow:0 0 30px #ff3355,0 0 60px #ff335588,0 2px 0 #000,0 4px 15px rgba(0,0,0,.8);-webkit-text-stroke:1px rgba(255,255,255,.2)}
+.streak-announce .streak-sub{font-size:clamp(12px,2vw,18px);color:#ffaa00;letter-spacing:4px;margin-top:4px;text-shadow:0 0 10px #ffaa0088}
+.streak-announce.godlike .streak-text{color:#ffaa00;text-shadow:0 0 40px #ffaa00,0 0 80px #ffaa0088,0 2px 0 #000;animation:godPulse 0.3s ease-in-out 3}
+@keyframes streakPop{0%{opacity:0;transform:scale(2.5) translateY(20px)}15%{opacity:1;transform:scale(1) translateY(0)}70%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(0.8) translateY(-30px)}}
+@keyframes godPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+
+/* FLOATING DAMAGE NUMBERS */
+.dmg-number{position:absolute;pointer-events:none;font-family:'Orbitron',monospace;font-weight:900;animation:dmgFloat 1.2s ease-out forwards;opacity:0;text-shadow:0 2px 4px rgba(0,0,0,.9);z-index:40}
+
+/* SCREEN FLASH */
+#screenFlash{position:fixed;inset:0;pointer-events:none;z-index:45;opacity:0;transition:opacity 0.05s}
+@keyframes killFlash{0%{opacity:.35}100%{opacity:0}}
+@keyframes impactRing{0%{transform:scale(0.3);opacity:0.9}100%{transform:scale(2.5);opacity:0}}
+
+/* ═══ SHOP ═══ */
+#shopScreen{background:rgba(4,6,14,.97);backdrop-filter:blur(12px);align-items:center;justify-content:center;padding:0}
+#shopPanel{display:flex;flex-direction:column;width:min(940px,96vw);height:min(600px,92vh);background:rgba(8,12,24,.98);border:1px solid rgba(30,50,90,.8);border-radius:8px;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.8),0 0 0 1px rgba(0,245,255,.04)}
+
+/* Header */
+#shopHeader{display:flex;align-items:center;gap:12px;padding:10px 16px;background:rgba(5,8,16,.95);border-bottom:1px solid rgba(30,50,90,.6);flex-shrink:0}
+#shopHeader .sh-title{font-family:'Orbitron',monospace;font-size:13px;font-weight:900;letter-spacing:4px;color:var(--amber)}
+#shopGold{display:flex;align-items:center;gap:6px;margin-left:auto}
+#shopGold .gold-icon{font-size:18px}
+#shopGold .gold-val{font-family:'Orbitron',monospace;font-size:22px;font-weight:700;color:var(--amber)}
+#shopGold .gold-lbl{font-size:9px;color:var(--dim);letter-spacing:2px}
+#shopInventory{font-size:10px;color:var(--dim);letter-spacing:1px;margin-left:8px}
+#shopInventory.full{color:var(--red)}
+#shopCloseBtn{margin-left:12px;font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2px;padding:5px 12px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.4);cursor:pointer;border-radius:3px;transition:all .15s}
+#shopCloseBtn:hover{border-color:var(--red);color:var(--red)}
+
+/* Body */
+#shopBody{display:flex;flex:1;overflow:hidden;min-height:0}
+
+/* Left sidebar */
+#shopSidebar{width:148px;flex-shrink:0;background:rgba(5,8,18,.7);border-right:1px solid rgba(30,50,90,.5);padding:8px 6px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.scat-btn{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid transparent;border-radius:4px;cursor:pointer;transition:all .15s;background:transparent;width:100%;text-align:left}
+.scat-btn:hover{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08)}
+.scat-btn.active{background:rgba(0,245,255,.06);border-color:rgba(0,245,255,.25)}
+.scat-btn.active .scat-lbl{color:var(--cyan)}
+.scat-btn .scat-ico{font-size:16px;width:20px;text-align:center}
+.scat-btn .scat-lbl{font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1px;color:var(--dim);flex:1}
+.scat-btn.active .scat-lbl{color:var(--cyan)}
+.scat-btn .scat-cnt{font-size:8px;color:var(--dim);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:10px}
+.scat-divider{height:1px;background:rgba(30,50,90,.5);margin:4px 6px}
+
+/* Item grid */
+#shopItemGrid{flex:1;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:0}
+.shop-section-label{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2px;color:var(--dim);margin:4px 0 8px;padding-bottom:4px;border-bottom:1px solid rgba(30,50,90,.4)}
+.shop-items-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.shop-item{width:76px;border:1px solid rgba(30,50,90,.7);border-radius:5px;overflow:hidden;cursor:pointer;transition:all .15s;background:rgba(5,10,22,.8);position:relative;flex-shrink:0}
+.shop-item:hover:not(.si-owned):not(.si-cant){border-color:var(--amber);background:rgba(255,170,0,.06);transform:translateY(-1px);box-shadow:0 4px 12px rgba(255,170,0,.15)}
+.shop-item.si-selected{border-color:var(--cyan);background:rgba(0,245,255,.06);box-shadow:0 0 12px rgba(0,245,255,.2)}
+.shop-item.si-owned{border-color:rgba(0,255,136,.3);background:rgba(0,255,136,.03);cursor:default}
+.shop-item.si-cant{opacity:.38;cursor:default}
+.si-icon-wrap{height:52px;display:flex;align-items:center;justify-content:center;font-size:26px;background:rgba(0,0,0,.3);position:relative}
+.si-cat-stripe{position:absolute;bottom:0;left:0;right:0;height:2px}
+.si-name{font-family:'Orbitron',monospace;font-size:7px;letter-spacing:.5px;padding:4px 4px 2px;text-align:center;line-height:1.2;color:var(--text)}
+.si-cost{font-family:'Orbitron',monospace;font-size:8px;color:var(--amber);text-align:center;padding:0 4px 5px;display:flex;align-items:center;justify-content:center;gap:2px}
+.si-cost .ci-e{font-size:10px}
+.si-owned-badge{position:absolute;top:3px;right:3px;font-size:8px;background:rgba(0,255,136,.2);color:var(--green);border-radius:2px;padding:0 3px;font-family:'Orbitron',monospace;line-height:14px}
+.si-stack-badge{position:absolute;top:3px;left:3px;font-size:8px;background:rgba(255,170,0,.25);color:var(--amber);border-radius:2px;padding:0 3px;font-family:'Orbitron',monospace;line-height:14px}
+
+/* Right detail panel */
+#shopDetail{width:210px;flex-shrink:0;background:rgba(4,7,16,.8);border-left:1px solid rgba(30,50,90,.5);display:flex;flex-direction:column;overflow:hidden}
+#shopDetailInner{flex:1;padding:16px 14px;display:flex;flex-direction:column;gap:0;overflow-y:auto}
+.sd-placeholder{flex:1;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--dim);text-align:center;letter-spacing:1px;font-family:'Orbitron',monospace;padding:20px}
+.sd-icon{font-size:48px;text-align:center;margin-bottom:8px;line-height:1}
+.sd-cat-tag{display:inline-block;font-family:'Orbitron',monospace;font-size:7px;letter-spacing:2px;padding:2px 8px;border-radius:2px;margin-bottom:8px;align-self:flex-start}
+.sd-name{font-family:'Orbitron',monospace;font-size:13px;font-weight:700;letter-spacing:1px;color:var(--text);margin-bottom:8px;line-height:1.2}
+.sd-desc{font-size:11px;color:rgba(192,216,240,.7);line-height:1.6;margin-bottom:12px}
+.sd-stats{border:1px solid rgba(30,50,90,.5);border-radius:4px;padding:8px 10px;margin-bottom:12px;background:rgba(0,0,0,.2)}
+.sd-stat-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px;border-bottom:1px solid rgba(30,50,90,.25)}
+.sd-stat-row:last-child{border-bottom:none}
+.sd-stat-key{color:var(--dim);letter-spacing:.5px}
+.sd-stat-val{font-family:'Orbitron',monospace;font-size:9px}
+.sd-cost-row{display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.sd-cost-e{font-size:18px}
+.sd-cost-val{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;color:var(--amber)}
+.sd-cost-lbl{font-size:9px;color:var(--dim);letter-spacing:1px}
+.sd-cost-row.cant-afford .sd-cost-val{color:var(--red)}
+#shopBuyBtn{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;padding:10px;border:1px solid var(--amber);background:rgba(255,170,0,.08);color:var(--amber);cursor:pointer;border-radius:4px;transition:all .15s;width:calc(100% - 24px);margin:0 12px 12px;flex-shrink:0}
+#shopBuyBtn:hover:not(:disabled){background:var(--amber);color:rgba(5,8,16,1)}
+#shopBuyBtn:disabled{opacity:.35;cursor:default;border-color:var(--dim);color:var(--dim);background:transparent}
+#shopBuyBtn.owned-btn{border-color:var(--green);color:var(--green);background:rgba(0,255,136,.06)}
+#shopBuyBtn.owned-btn:disabled{cursor:default}
+
+/* Footer */
+#shopFooter{padding:8px 16px;background:rgba(5,8,16,.95);border-top:1px solid rgba(30,50,90,.5);display:flex;align-items:center;gap:8px;flex-shrink:0;min-height:52px}
+#shopFooter .sf-label{font-family:'Orbitron',monospace;font-size:8px;letter-spacing:2px;color:var(--dim);white-space:nowrap}
+#shopOwnedSlots{display:flex;gap:6px;flex:1;overflow:hidden}
+.sowned-slot{width:38px;height:38px;border:1px solid rgba(30,50,90,.6);border-radius:4px;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:18px;position:relative;flex-shrink:0}
+.sowned-slot.filled{border-color:rgba(0,255,136,.3);background:rgba(0,255,136,.04)}
+.sowned-slot .soslot-empty{font-size:10px;color:rgba(255,255,255,.1)}
+.sowned-slot .socat{position:absolute;bottom:0;left:0;right:0;height:2px;border-radius:0 0 3px 3px}
+
+/* Stripe colors by category */
+.stripe-offense{background:var(--red)}.stripe-defense{background:var(--cyan)}.stripe-mobility{background:var(--green)}
+.stripe-combat{background:#ff6600}.stripe-utility{background:var(--purple)}
+.tag-offense{background:rgba(255,51,85,.15);color:var(--red);border:1px solid rgba(255,51,85,.3)}
+.tag-defense{background:rgba(0,245,255,.1);color:var(--cyan);border:1px solid rgba(0,245,255,.25)}
+.tag-mobility{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.25)}
+.tag-combat{background:rgba(255,102,0,.12);color:#ff8833;border:1px solid rgba(255,102,0,.3)}
+.tag-utility{background:rgba(204,68,255,.1);color:var(--purple);border:1px solid rgba(204,68,255,.3)}
+/* Legacy compat */
+.energy-display{font-family:'Orbitron',monospace;font-size:22px;font-weight:700;color:var(--amber)}
+.energy-label{font-size:9px;color:var(--dim);letter-spacing:2px}
+
+/* RESULT */
+.result-title{font-family:'Orbitron',monospace;font-size:clamp(28px,5vw,56px);font-weight:900;letter-spacing:4px}
+.result-win{color:var(--cyan);text-shadow:0 0 30px var(--cyan)}
+.result-lose{color:var(--red);text-shadow:0 0 30px var(--red)}
+.result-stats{background:var(--panel);border:1px solid var(--border);padding:20px 40px;min-width:320px;margin:10px 0}
+.stat-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(26,48,80,.4)}
+.stat-row:last-child{border-bottom:none}
+.stat-val{color:var(--cyan)}
+.elo-change{font-family:'Orbitron',monospace;font-size:20px}
+.elo-up{color:var(--green)}.elo-down{color:var(--red)}
+.tutorial-box{max-width:520px;background:var(--panel);border:1px solid var(--border);padding:24px;line-height:1.8;font-size:12px}
+.tutorial-box h3{font-family:'Orbitron',monospace;font-size:14px;color:var(--cyan);letter-spacing:2px;margin-bottom:10px}
+.key-grid{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:8px 0 12px}
+.kbd{background:var(--border);padding:2px 6px;font-size:11px;color:var(--cyan)}
+#scanlines{position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px);pointer-events:none;z-index:100}
+#pingDisplay{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:'Orbitron',monospace;font-size:10px;letter-spacing:1px;padding:4px 12px;border:1px solid var(--border);background:rgba(5,8,16,.9);pointer-events:none;z-index:6;display:flex;gap:10px;align-items:center;border-radius:4px;backdrop-filter:blur(4px)}
+#pingDisplay .net-item{display:flex;align-items:center;gap:3px}
+#pingDisplay .net-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+#pingDisplay .net-label{color:var(--dim);font-size:8px;letter-spacing:1px}
+#pingDisplay .net-val{font-size:10px}
+.ping-good{color:var(--green);border-color:rgba(0,255,136,.3)}.ping-ok{color:var(--amber);border-color:rgba(255,170,0,.3)}.ping-bad{color:var(--red);border-color:rgba(255,51,85,.3)}
+.mode-badge{font-size:9px;padding:2px 6px;border:1px solid;letter-spacing:2px;font-family:'Orbitron',monospace;display:inline-block;margin-bottom:4px}
+.mode-online{color:var(--green);border-color:var(--green)}.mode-offline{color:var(--dim);border-color:var(--dim)}
+.mode-team{color:var(--amber);border-color:var(--amber)}
+.mode-local{color:var(--magenta);border-color:var(--magenta)}
+
+/* COMBO COUNTER */
+#comboDisplay{position:absolute;top:32%;left:50%;transform:translateX(-50%);pointer-events:none;z-index:48;text-align:center}
+.combo-text{font-family:'Orbitron',monospace;font-weight:900;font-size:clamp(18px,4vw,42px);letter-spacing:4px;text-shadow:0 0 20px currentColor,0 0 40px currentColor,0 2px 0 #000;animation:comboPulse 0.3s ease-out;color:#ff00aa}
+.combo-sub{font-size:clamp(10px,2vw,14px);color:#ffaa00;letter-spacing:3px;margin-top:2px;text-shadow:0 0 8px #ffaa0088}
+@keyframes comboPulse{0%{transform:scale(1.5);opacity:0}30%{transform:scale(1);opacity:1}100%{opacity:1}}
+@keyframes comboFade{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(0.7) translateY(-20px)}}
+
+/* GOLD FLOAT */
+.gold-float{position:absolute;pointer-events:none;font-family:'Orbitron',monospace;font-weight:700;font-size:16px;color:#ffaa00;text-shadow:0 0 10px #ffaa00,0 2px 4px rgba(0,0,0,.9);z-index:42;animation:goldRise 1.5s ease-out forwards}
+@keyframes goldRise{0%{opacity:1;transform:translateY(0) scale(1.3)}50%{opacity:1}100%{opacity:0;transform:translateY(-40px) scale(0.8)}}
+
+/* UPGRADE FANFARE */
+#upgradeFanfare{position:absolute;top:18%;left:50%;transform:translateX(-50%);pointer-events:none;z-index:49;text-align:center}
+.fanfare-text{font-family:'Orbitron',monospace;font-weight:900;font-size:clamp(20px,3vw,36px);color:#00ff88;letter-spacing:5px;text-shadow:0 0 30px #00ff88,0 0 60px #00ff8844;animation:fanfarePop 2s ease-out forwards}
+.fanfare-sub{font-size:12px;color:#ffaa00;letter-spacing:3px;margin-top:4px}
+@keyframes fanfarePop{0%{opacity:0;transform:scale(2) translateY(20px)}15%{opacity:1;transform:scale(1) translateY(0)}70%{opacity:1}100%{opacity:0;transform:scale(0.9) translateY(-20px)}}
+@keyframes levelBurst{0%{transform:scale(0.3);opacity:.8}100%{transform:scale(3);opacity:0}}
+</style>
+</head>
+<body>
+<div id="scanlines"></div>
+<div id="screenFlash"></div>
+<div id="app">
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="practiceToolbar" class="hidden">
+    <button class="ptool-btn" onclick="practiceGiveEnergy()">💰 +500 ENERGY</button>
+    <button class="ptool-btn ptool-amber" onclick="practiceOpenShop()">🛒 OPEN SHOP</button>
+    <button class="ptool-btn ptool-red" onclick="practiceSpawnDummy()">🎯 SPAWN DUMMY</button>
+    <button class="ptool-btn ptool-red" onclick="practiceClearDummies()">❌ CLEAR DUMMIES</button>
+    <button class="ptool-btn ptool-cyan" onclick="practiceFullHeal()">❤️ FULL HEAL</button>
+    <button class="ptool-btn ptool-cyan" onclick="practiceResetCooldowns()">⚡ RESET CDs</button>
+    <button class="ptool-btn ptool-purple" onclick="practiceToggleDmgLog()">📊 DMG LOG</button>
+    <button class="ptool-btn ptool-red" onclick="practiceResetUpgrades()">🔄 RESET ITEMS</button>
+    <button class="ptool-btn" onclick="practiceSpawnMobs()">🐺 SPAWN MOBS</button>
+    <button class="ptool-btn ptool-red" onclick="practiceEnd()">🚪 EXIT</button>
+  </div>
+  <div id="practiceDmgLog" class="hidden"></div>
+
+  <div id="hud" class="hidden">
+    <div class="hud-tl hud-panel">
+      <div id="hudMode" class="mode-badge mode-offline">OFFLINE</div>
+      <div id="hudCls" class="hud-cls cls-g">GUNNER</div>
+      <div class="hud-label">HP</div>
+      <div class="hp-bar-wrap"><div class="hp-bar-fill" id="hudHPFill" style="width:100%"></div><div class="hp-bar-text" id="hudHPText">100 / 100</div></div>
+      <div class="hud-label">ENERGY</div><div class="hud-val hud-energy" id="hudEnergyText">0</div>
+      <div style="display:flex;align-items:center;gap:5px;margin-top:4px">
+        <div style="font-family:'Orbitron',monospace;font-size:9px;color:#ffcc00;letter-spacing:1px;min-width:32px">LV <span id="hudLevel">1</span></div>
+        <div style="flex:1;height:4px;background:rgba(26,48,80,.6);border-radius:2px;overflow:hidden">
+          <div id="hudXPFill" style="height:100%;width:0%;background:linear-gradient(90deg,#ffaa00,#ffcc00);transition:width .4s ease;border-radius:2px"></div>
+        </div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:8px;color:#4a6080;min-width:40px;text-align:right" id="hudXPText">0/100</div>
+      </div>
+      <div id="hudStreak" style="margin-top:4px"></div>
+      <div class="hud-upgrades" id="hudUpgrades"></div>
+    </div>
+    <div class="hud-tc hud-panel" style="padding:6px 16px">
+      <div class="hud-val hud-score"><span id="hudS1">0</span> — <span id="hudS2">0</span></div>
+      <div class="hud-val hud-timer" id="hudTimer">2:00</div>
+    </div>
+    <div class="hud-bl">
+      <div id="dashPill" class="cd-pill cd-ready">DASH READY</div>
+      <div id="specPill" class="cd-pill cd-wait">SPECIAL CD</div>
+    </div>
+    <div id="hudScoreboard"></div>
+    <div id="killfeed"></div>
+    <div id="pingDisplay" class="ping-good" style="display:none">
+      <div class="net-item"><span class="net-dot" id="netDot"></span><span class="net-label">PING</span><span class="net-val" id="netPing">--</span></div>
+      <div class="net-item"><span class="net-label">LOSS</span><span class="net-val" id="netLoss">0%</span></div>
+      <div class="net-item"><span class="net-label">INTERP</span><span class="net-val" id="netInterp">--</span></div>
+      <div class="net-item" id="netExtrapWrap" style="display:none"><span class="net-val" style="color:var(--amber)">⚠ EXTRAP</span></div>
+    </div>
+    <div style="position:absolute;top:50%;left:8px;transform:translateY(-50%);pointer-events:all">
+      <button id="forfeitBtn" onclick="forfeitClick()" style="display:none;background:rgba(10,16,32,.85);border:1px solid rgba(255,50,50,.3);color:rgba(255,80,80,.7);font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1px;padding:5px 10px;border-radius:3px;cursor:pointer;transition:all .15s;writing-mode:vertical-rl;text-orientation:mixed">LEAVE</button>
+    </div>
+    <div id="streakBar"></div>
+    <div id="streakPopup"></div>
+    <div id="comboDisplay"></div>
+    <div id="upgradeFanfare"></div>
+    <div id="dmgNumbers"></div>
+    <div id="abilityBar">
+      <div class="abi-slot" id="abiAtk"><span class="abi-key">LMB</span><div class="abi-cd-overlay"></div><span class="abi-icon" id="abiAtkIcon">🔫</span><span class="abi-cd"></span></div>
+      <div class="abi-slot" id="abiDash"><span class="abi-key">SHIFT</span><div class="abi-cd-overlay"></div><span class="abi-icon">💨</span><span class="abi-cd"></span></div>
+      <div class="abi-slot" id="abiSec"><span class="abi-key">F</span><div class="abi-cd-overlay"></div><span class="abi-icon">💥</span><span class="abi-cd"></span></div>
+      <div class="abi-slot" id="abiSpec"><span class="abi-key">Q</span><div class="abi-cd-overlay"></div><span class="abi-icon" id="abiSpecIcon">⚡</span><span class="abi-cd"></span></div>
+      <div class="abi-slot" id="abiUlt"><span class="abi-key">R</span><div class="abi-cd-overlay"></div><span class="abi-icon" id="abiUltIcon">🔥</span><span class="abi-cd"></span></div>
+    </div>
+    <div id="consumableBar">
+      <div class="cons-slot" onclick="useConsumableSlot(0)"><span class="cons-key">1</span><span class="cons-icon">—</span></div>
+      <div class="cons-slot" onclick="useConsumableSlot(1)"><span class="cons-key">2</span><span class="cons-icon">—</span></div>
+      <div class="cons-slot" onclick="useConsumableSlot(2)"><span class="cons-key">3</span><span class="cons-icon">—</span></div>
+      <div class="cons-slot" onclick="useConsumableSlot(3)"><span class="cons-key">4</span><span class="cons-icon">—</span></div>
+      <div class="cons-slot" onclick="useConsumableSlot(4)"><span class="cons-key">5</span><span class="cons-icon">—</span></div>
+    </div>
+    <div id="itemsBar"></div>
+  </div>
+
+  <!-- SCREENS -->
+  <div id="menuScreen" class="screen">
+    <div class="logo"><div class="line1">REFLEX ARENA</div><div class="line2">RESOURCE WARS</div></div>
+    <div class="tagline">Choose Your Class • Upgrade to Dominate</div>
+    <div class="menu-buttons">
+      <button class="btn btn-primary" onclick="setMode('online',false)" id="onlineBtn">⚡ ONLINE PLAY</button>
+      <button class="btn btn-secondary" onclick="setMode('offline',false)">🤖 VS AI (1v1)</button>
+      <button class="btn btn-team" onclick="setMode('offline',true)">👥 2v2 TEAM MODE</button>
+      <button class="btn btn-team" onclick="setMode('3v3',true)" style="color:var(--magenta);border-color:var(--magenta)">⚔️ 3v3 TEAM MODE</button>
+      <button class="btn btn-secondary" onclick="setMode('practice',false)" style="color:var(--green);border-color:var(--green)">🎯 PRACTICE MODE</button>
+      <button class="btn btn-secondary" onclick="setMode('local2p',false)" style="color:var(--magenta);border-color:var(--magenta)">🎮 LOCAL 2P</button>
+      <button class="btn btn-secondary" onclick="showLeaderboard()">LEADERBOARD</button>
+      <button class="btn btn-secondary" onclick="showTutorial()">HOW TO PLAY</button>
+      <button class="btn btn-secondary" onclick="window.location.href='/editor'" style="color:var(--purple);border-color:var(--purple)">🗺️ MAP EDITOR</button>
+      
+    </div>
+    <div id="serverStatus" style="margin-top:8px;font-size:10px;color:var(--dim);letter-spacing:1px"></div>
+    <div style="margin-top:12px;text-align:center">
+      <div class="hud-label">YOUR RATING</div>
+      <div class="elo-badge" id="menuElo">1000</div>
+    </div>
+  </div>
+
+  <div id="tutorialScreen" class="screen hidden">
+    <div class="tutorial-box">
+      <h3>HOW TO PLAY</h3>
+      <div class="key-grid">
+        <span class="kbd">WASD</span><span>Move (momentum physics)</span>
+        <span class="kbd">MOUSE</span><span>Aim</span>
+        <span class="kbd">LMB / Space</span><span>Primary attack</span>
+        <span class="kbd">Shift / RMB</span><span>Dash (long range)</span>
+        <span class="kbd">Q or F</span><span>Class special ability</span>
+        <span class="kbd">R</span><span>Ultimate ability</span>
+        <span class="kbd">E</span><span>Open upgrade shop</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+        <div style="border:1px solid var(--cyan);padding:8px;font-size:10px">
+          <div style="color:var(--cyan);font-family:Orbitron,monospace;margin-bottom:4px">🔫 GUNNER</div>
+          <div style="color:var(--dim)">Balanced. Fast precision fire.<br>Q: <b style="color:var(--cyan)">Burst</b> — 5 rapid shots<br>R: <b style="color:var(--cyan)">Overcharge</b> — 4s of 3× fire rate</div>
+        </div>
+        <div style="border:1px solid var(--red);padding:8px;font-size:10px">
+          <div style="color:var(--red);font-family:Orbitron,monospace;margin-bottom:4px">⚔ ASSASSIN</div>
+          <div style="color:var(--dim)">Fast, fragile. Sword slash.<br>Q: <b style="color:var(--red)">Shadow Step</b> — dash-strike<br>R: <b style="color:var(--red)">Smoke Bomb</b> — invisibility + AoE</div>
+        </div>
+        <div style="border:1px solid var(--purple);padding:8px;font-size:10px">
+          <div style="color:var(--purple);font-family:Orbitron,monospace;margin-bottom:4px">🔮 MAGE</div>
+          <div style="color:var(--dim)">Slow, massive spells.<br>Q: <b style="color:var(--purple)">Nova</b> — AoE ring blast<br>R: <b style="color:var(--purple)">Arcane Barrier</b> — shield + heal</div>
+        </div>
+        <div style="border:1px solid var(--green);padding:8px;font-size:10px">
+          <div style="color:var(--green);font-family:Orbitron,monospace;margin-bottom:4px">🛡 TANK</div>
+          <div style="color:var(--dim)">Tanky frontliner. Hook + smash.<br>Q: <b style="color:var(--green)">Hook</b> — pull enemy to you<br>R: <b style="color:var(--green)">Fortify</b> — 50% dmg reduction + AoE</div>
+        </div>
+      </div>
+      <p style="margin-top:10px;color:var(--dim);font-size:11px">First to <span style="color:var(--cyan)">5 kills</span> wins (10 in 2v2). Collect <span style="color:var(--amber)">Energy</span> to buy upgrades (max 6 items).</p>
+      <p style="margin-top:6px;color:var(--amber);font-size:11px"><b>🔥 KILL STREAKS:</b> 3 kills → +25% dmg (5s) · 5 kills → +40% speed (5s) · 7 kills → Full heal + shield</p>
+    </div>
+    <button class="btn btn-primary" onclick="showMenu()">BACK</button>
+  </div>
+
+  <div id="classScreen" class="screen hidden">
+    <div style="font-family:Orbitron,monospace;font-size:18px;color:var(--amber);letter-spacing:3px;margin-bottom:4px">CHOOSE YOUR CLASS</div>
+    <div style="font-size:11px;color:var(--dim);letter-spacing:2px;margin-bottom:16px">Your playstyle defines the battlefield</div>
+    <div class="class-grid">
+      <div class="class-card gunner" onclick="selectClass('gunner')">
+        <span class="sel-badge">SELECTED</span>
+        <div class="class-icon">🔫</div><div class="class-name">GUNNER</div>
+        <div class="class-tag">BALANCED · PRECISION · RANGED</div>
+        <div class="class-desc">The arena veteran. Fast bullets, reliable output, and a burst mode for finishing opponents.</div>
+        <div class="class-stats">
+          <span class="stat-label">HEALTH</span><div class="stat-bar"><div class="stat-fill" style="width:70%;background:var(--green)"></div></div>
+          <span class="stat-label">SPEED</span><div class="stat-bar"><div class="stat-fill" style="width:65%;background:var(--cyan)"></div></div>
+          <span class="stat-label">DAMAGE</span><div class="stat-bar"><div class="stat-fill" style="width:65%;background:var(--red)"></div></div>
+          <span class="stat-label">RANGE</span><div class="stat-bar"><div class="stat-fill" style="width:92%;background:var(--amber)"></div></div>
+        </div>
+        <div class="class-ability"><div class="ability-name">⚡ LOCK-ON BURST [Q] — 4s cd</div>Fires 5 accurate shots in rapid succession.</div>
+      </div>
+      <div class="class-card assassin" onclick="selectClass('assassin')">
+        <span class="sel-badge">SELECTED</span>
+        <div class="class-icon">⚔️</div><div class="class-name">ASSASSIN</div>
+        <div class="class-tag">HIGH RISK · MELEE · BURST DAMAGE</div>
+        <div class="class-desc">Ghost-like speed, lethal up close. The sword arc deals massive damage but demands perfect positioning.</div>
+        <div class="class-stats">
+          <span class="stat-label">HEALTH</span><div class="stat-bar"><div class="stat-fill" style="width:50%;background:var(--green)"></div></div>
+          <span class="stat-label">SPEED</span><div class="stat-bar"><div class="stat-fill" style="width:95%;background:var(--cyan)"></div></div>
+          <span class="stat-label">DAMAGE</span><div class="stat-bar"><div class="stat-fill" style="width:90%;background:var(--red)"></div></div>
+          <span class="stat-label">RANGE</span><div class="stat-bar"><div class="stat-fill" style="width:28%;background:var(--amber)"></div></div>
+        </div>
+        <div class="class-ability"><div class="ability-name">🗡 SHADOW STEP [Q] — 3s cd</div>Dash through enemy, dealing 40 damage on contact.</div>
+      </div>
+      <div class="class-card mage" onclick="selectClass('mage')">
+        <span class="sel-badge">SELECTED</span>
+        <div class="class-icon">🔮</div><div class="class-name">MAGE</div>
+        <div class="class-tag">STRATEGIC · AoE · HIGH DAMAGE</div>
+        <div class="class-desc">Master of arcane arts. Each spell hits like a truck. Nova Burst punishes opponents who get too close.</div>
+        <div class="class-stats">
+          <span class="stat-label">HEALTH</span><div class="stat-bar"><div class="stat-fill" style="width:60%;background:var(--green)"></div></div>
+          <span class="stat-label">SPEED</span><div class="stat-bar"><div class="stat-fill" style="width:48%;background:var(--cyan)"></div></div>
+          <span class="stat-label">DAMAGE</span><div class="stat-bar"><div class="stat-fill" style="width:100%;background:var(--red)"></div></div>
+          <span class="stat-label">RANGE</span><div class="stat-bar"><div class="stat-fill" style="width:76%;background:var(--amber)"></div></div>
+        </div>
+        <div class="class-ability"><div class="ability-name">💥 NOVA BURST [Q] — 5s cd</div>Expanding arcane ring deals 35 dmg to enemies it crosses.</div>
+      </div>
+      <div class="class-card necro" onclick="selectClass('necro')">
+        <span class="sel-badge">SELECTED</span>
+        <div class="class-icon">💀</div><div class="class-name">NECROMANCER</div>
+        <div class="class-tag">SUMMONER · DRAIN · DARK MAGIC</div>
+        <div class="class-desc">Commands the dead. Summon skeletons to fight, drain life from enemies to heal.</div>
+        <div class="class-stats">
+          <span class="stat-label">HEALTH</span><div class="stat-bar"><div class="stat-fill" style="width:62%;background:var(--green)"></div></div>
+          <span class="stat-label">SPEED</span><div class="stat-bar"><div class="stat-fill" style="width:52%;background:var(--cyan)"></div></div>
+          <span class="stat-label">DAMAGE</span><div class="stat-bar"><div class="stat-fill" style="width:78%;background:var(--red)"></div></div>
+          <span class="stat-label">RANGE</span><div class="stat-bar"><div class="stat-fill" style="width:68%;background:var(--amber)"></div></div>
+        </div>
+        <div class="class-ability">
+          <div class="ability-name">👻 SOUL DRAIN [Q] — 5.5s cd</div>Cone AoE drains 30 dmg, heals self 15 per hit.
+          <div class="ability-name" style="margin-top:4px">💀 RAISE DEAD [R] — 13s cd</div>Summon 3 skeleton minions for 10s.
+        </div>
+      </div>
+      <div class="class-card ranger" onclick="selectClass('ranger')">
+        <span class="sel-badge">SELECTED</span>
+        <div class="class-icon">🏹</div><div class="class-name">RANGER</div>
+        <div class="class-tag">AGILE · LONG RANGE · TRAPS</div>
+        <div class="class-desc">Swift archer with deadly precision. Charged snipe for devastating damage, traps to control the field.</div>
+        <div class="class-stats">
+          <span class="stat-label">HEALTH</span><div class="stat-bar"><div class="stat-fill" style="width:55%;background:var(--green)"></div></div>
+          <span class="stat-label">SPEED</span><div class="stat-bar"><div class="stat-fill" style="width:88%;background:var(--cyan)"></div></div>
+          <span class="stat-label">DAMAGE</span><div class="stat-bar"><div class="stat-fill" style="width:72%;background:var(--red)"></div></div>
+          <span class="stat-label">RANGE</span><div class="stat-bar"><div class="stat-fill" style="width:100%;background:var(--amber)"></div></div>
+        </div>
+        <div class="class-ability">
+          <div class="ability-name">🏹 VOLLEY [Q] — 4s cd</div>Fire 5 arrows in a wide spread arc.
+          <div class="ability-name" style="margin-top:4px">🪤 TRAP FIELD [R] — 12s cd</div>Place 3 bear traps that root and damage enemies.
+        </div>
+      </div>
+      <div class="class-card tank" onclick="selectClass('tank')">
+        <span class="sel-badge">SELECTED</span>
+        <div class="class-icon">🛡️</div><div class="class-name">TANK</div>
+        <div class="class-tag">FRONTLINE · HOOK · HIGH HP</div>
+        <div class="class-desc">Unstoppable bruiser. Hook enemies to your face, then smash them. Massive HP pool with damage reduction ultimate.</div>
+        <div class="class-stats">
+          <span class="stat-label">HEALTH</span><div class="stat-bar"><div class="stat-fill" style="width:100%;background:var(--green)"></div></div>
+          <span class="stat-label">SPEED</span><div class="stat-bar"><div class="stat-fill" style="width:38%;background:var(--cyan)"></div></div>
+          <span class="stat-label">DAMAGE</span><div class="stat-bar"><div class="stat-fill" style="width:72%;background:var(--red)"></div></div>
+          <span class="stat-label">RANGE</span><div class="stat-bar"><div class="stat-fill" style="width:60%;background:var(--amber)"></div></div>
+        </div>
+        <div class="class-ability"><div class="ability-name">🪝 MEAT HOOK [Q] — 6s cd</div>Throw a hook that pulls the first enemy hit to you, dealing 30 dmg.</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:12px">
+      <button class="btn btn-primary" id="confirmBtn" onclick="confirmClass()" style="opacity:.4;pointer-events:none">ENTER ARENA</button>
+      <button class="btn btn-secondary" onclick="showMenu()">BACK</button>
+    </div>
+  </div>
+
+  <div id="mmScreen" class="screen hidden">
+    <div class="mm-spinner"></div>
+    <div class="mm-status">FINDING OPPONENT<span class="mm-dots"><span>.</span><span>.</span><span>.</span></span></div>
+    <div class="mm-info" id="mmInfo">Searching…</div>
+    <div style="text-align:center;margin-top:8px">
+      <div class="hud-label">YOUR ELO</div>
+      <div class="elo-badge" id="mmElo">1000</div>
+    </div>
+    <button class="btn btn-secondary" onclick="showMenu()" style="margin-top:20px">CANCEL</button>
+  </div>
+
+  <div id="shopScreen" class="screen hidden">
+    <div id="shopPanel">
+      <!-- Header -->
+      <div id="shopHeader">
+        <span class="sh-title">SHOP</span>
+        <div id="shopGold">
+          <span class="gold-icon">⚡</span>
+          <span class="gold-val" id="shopEnergy">0</span>
+          <span class="gold-lbl">ENERGY</span>
+        </div>
+        <span id="shopInventory">UPGRADES: 0 / 6</span>
+        <button id="shopCloseBtn" onclick="closeShop()">✕ CLOSE [E]</button>
+      </div>
+      <!-- Body -->
+      <div id="shopBody">
+        <!-- Category sidebar -->
+        <div id="shopSidebar">
+          <button class="scat-btn active" id="scat-all"     onclick="selectShopCat('all')">     <span class="scat-ico">🏪</span><span class="scat-lbl">ALL ITEMS</span></button>
+          <div class="scat-divider"></div>
+          <button class="scat-btn" id="scat-offense"  onclick="selectShopCat('offense')"> <span class="scat-ico">⚡</span><span class="scat-lbl">OFFENSE</span></button>
+          <button class="scat-btn" id="scat-defense"  onclick="selectShopCat('defense')"> <span class="scat-ico">🛡</span><span class="scat-lbl">DEFENSE</span></button>
+          <button class="scat-btn" id="scat-mobility" onclick="selectShopCat('mobility')"><span class="scat-ico">💨</span><span class="scat-lbl">MOBILITY</span></button>
+          <div class="scat-divider"></div>
+          <button class="scat-btn" id="scat-combat"   onclick="selectShopCat('combat')">  <span class="scat-ico">⚔️</span><span class="scat-lbl">COMBAT</span></button>
+          <button class="scat-btn" id="scat-utility"  onclick="selectShopCat('utility')"> <span class="scat-ico">🔮</span><span class="scat-lbl">UTILITY</span></button>
+          <div class="scat-divider"></div>
+          <button class="scat-btn" id="scat-owned"    onclick="selectShopCat('owned')">   <span class="scat-ico">✓</span><span class="scat-lbl">OWNED</span></button>
+        </div>
+        <!-- Item grid -->
+        <div id="shopItemGrid"></div>
+        <!-- Detail panel -->
+        <div id="shopDetail">
+          <div id="shopDetailInner">
+            <div class="sd-placeholder">Hover an item<br>to see details</div>
+          </div>
+          <button id="shopBuyBtn" disabled>SELECT AN ITEM</button>
+        </div>
+      </div>
+      <!-- Footer: owned items -->
+      <div id="shopFooter">
+        <span class="sf-label">OWNED</span>
+        <div id="shopOwnedSlots"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultScreen" class="screen hidden">
+    <div class="result-title" id="rTitle">YOU WIN</div>
+    <div class="result-stats">
+      <div class="stat-row"><span>Kills</span><span class="stat-val" id="rKills">0</span></div>
+      <div class="stat-row"><span>Attacks</span><span class="stat-val" id="rShots">0</span></div>
+      <div class="stat-row"><span>Accuracy</span><span class="stat-val" id="rAcc">0%</span></div>
+      <div class="stat-row"><span>Specials Used</span><span class="stat-val" id="rSpec">0</span></div>
+      <div class="stat-row"><span>Energy Collected</span><span class="stat-val" id="rEn">0</span></div>
+      <div class="stat-row"><span>Best Streak</span><span class="stat-val" id="rStreak">0</span></div>
+    </div>
+    <div class="elo-change" id="rElo">+25 ELO</div>
+    <div class="menu-buttons" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="showClassSelect()">PLAY AGAIN</button>
+      <button class="btn btn-secondary" onclick="showMenu()">MAIN MENU</button>
+    </div>
+  </div>
+
+  <div id="lbScreen" class="screen hidden">
+    <div class="lb-title">LEADERBOARD</div>
+    <table class="lb-table"><thead><tr><th>#</th><th>PLAYER</th><th>ELO</th><th>W/L</th><th>CLASS</th></tr></thead><tbody id="lbBody"></tbody></table>
+    <div style="margin-top:14px;font-size:11px;color:var(--dim)">YOUR RANK: <span id="yourRank" style="color:var(--cyan)">—</span></div>
+    <button class="btn btn-secondary" onclick="showMenu()" style="margin-top:12px">BACK</button>
+  </div>
+
+  <!-- ═══ LOADING SCREEN ═══ -->
+  <div id="loadingScreen" class="screen hidden" style="background:var(--bg)">
+    <div style="font-family:'Orbitron',monospace;font-size:28px;font-weight:900;letter-spacing:4px;color:var(--cyan);text-shadow:0 0 20px var(--cyan);margin-bottom:8px">LOADING</div>
+    <div style="font-size:12px;color:var(--dim);letter-spacing:3px;margin-bottom:32px">PRELOADING ARENA ASSETS</div>
+    <div style="width:320px;height:4px;background:#1a3050;border-radius:2px;overflow:hidden;margin-bottom:10px">
+      <div id="loadingBar" style="height:100%;width:0%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);transition:width .1s linear;border-radius:2px"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;width:320px">
+      <div id="loadingInfo" style="font-size:10px;color:var(--dim);letter-spacing:1px;font-family:'Share Tech Mono',monospace">0 / 0 sprites</div>
+      <div id="loadingPct" style="font-size:10px;color:var(--cyan);font-family:'Orbitron',monospace;font-weight:700">0%</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- MODULAR JS — Load order matters (dependencies first) -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<script src="js/data.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/sfx.js"></script>
+<script src="js/sfx_multiplayer.js"></script>
+<script src="js/vfx.js"></script>
+<script src="js/map.js"></script>
+<script src="js/levelup.js"></script>
+<script src="js/spatial-hash.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/abilities.js"></script>
+<script src="js/player.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/hud.js"></script>
+<script src="js/pixi.min.js"></script>
+<script src="js/renderer-pixi.js"></script>
+<script src="js/binproto.js"></script>
+<script src="js/sprite-gen.js"></script>
+<script src="js/debug.js"></script>
+<script src="js/network.js"></script>
+<script src="js/network_features.js" defer></script>
+<script src="js/engine.js"></script>
+</body>
+</html>
